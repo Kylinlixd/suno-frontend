@@ -1,0 +1,19 @@
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { createSecurityExportTask, downloadSecurityExportTask, getAdminMetrics } from "@suno/shared";
+import { apiOptions, sessionApiOptions } from "../lib/auth";
+import { useState } from "react";
+
+export function AdminDashboardPage() {
+  const { data } = useQuery({ queryKey: ["admin-metrics"], queryFn: () => getAdminMetrics(sessionApiOptions()) });
+  const [exportStatus, setExportStatus] = useState("");
+  const [exportTask, setExportTask] = useState<Record<string, unknown> | null>(null);
+  const exportMutation = useMutation({ mutationFn: () => createSecurityExportTask({ type: "summary", format: "csv", lookbackMinutes: 60, topN: 10, idempotencyKey: `suno-export-${Date.now()}` }, sessionApiOptions()), onSuccess: (result) => { setExportTask(result); setExportStatus(`${String(result.status ?? "已创建")} · ${String(result.fileName ?? result.taskId ?? "任务已提交")}`); } });
+  const downloadMutation = useMutation({ mutationFn: () => downloadSecurityExportTask(String(exportTask?.taskId ?? ""), sessionApiOptions()), onSuccess: (content) => { const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = String(exportTask?.fileName ?? "security-events-summary.csv"); anchor.click(); URL.revokeObjectURL(url); setExportStatus(`${String(exportTask?.fileName ?? "导出文件")} · 已下载`); } });
+  const exportTaskId = String(exportTask?.taskId ?? "");
+  const metrics = data ?? { recycleCount: 0, pendingReview: 0, fulfillment: 0, paymentIssues: 0, recentActivity: [] };
+  return <div className="admin-page"><div className="admin-topbar"><div><p className="eyebrow">Suno operations</p><h1>今天，系统流转得很好。</h1></div><span className="admin-live"><i /> {apiOptions.demo ? "Demo data live" : "Live data"}</span></div><div className="metric-grid"><Metric label="本月回收件数" value={metrics.recycleCount} suffix="件" tone="lime" /><Metric label="待审核回收单" value={metrics.pendingReview} suffix="件" tone="amber" /><Metric label="待履约订单" value={metrics.fulfillment} suffix="单" tone="blue" /><Metric label="支付异常" value={metrics.paymentIssues} suffix="项" tone="rose" /></div><div className="admin-columns"><section className="admin-panel"><div className="panel-heading"><h2>最近发生</h2><div className="panel-actions"><button className="text-button" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>{exportMutation.isPending ? "正在生成…" : "生成导出任务 ↗"}</button>{exportTaskId && <button className="text-button" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>{downloadMutation.isPending ? "正在下载…" : "下载导出文件 ↘"}</button>}</div></div>{exportStatus && <p className="export-status">{exportStatus}</p>}{downloadMutation.isError && <p className="error-message admin-error">导出文件下载失败，请稍后重试。</p>}<div className="activity-list">{metrics.recentActivity.map((item) => <div className="activity-row" key={item.value}><i className={`tone-${item.tone}`} /><span>{item.label}</span><strong>{item.value}</strong><small>刚刚</small></div>)}</div></section><section className="admin-panel dark-panel"><p className="eyebrow">循环看板</p><h2>本周每一件被重新选择的物品，都少了一点浪费。</h2><div className="admin-chart"><span style={{ height: "34%" }} /><span style={{ height: "58%" }} /><span style={{ height: "46%" }} /><span style={{ height: "72%" }} /><span style={{ height: "64%" }} /><span style={{ height: "91%" }} /><span style={{ height: "78%" }} /></div><div className="chart-labels"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div></section></div></div>;
+}
+
+function Metric({ label, value, suffix, tone }: { label: string; value: number; suffix: string; tone: string }) {
+  return <div className={`metric-card metric-${tone}`}><span>{label}</span><strong>{value}<small>{suffix}</small></strong><p>较上周 <b>+12.4%</b></p></div>;
+}

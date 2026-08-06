@@ -1,0 +1,16 @@
+{
+  "name": "suno-frontend",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "dev:web": "corepack pnpm --filter @suno/web dev",
+    "build:web": "corepack pnpm --filter @suno/web build",
+    "build:mini": "corepack pnpm --filter @suno/miniprogram build:weapp",
+    "test": "corepack pnpm --filter @suno/shared test",
+    "typecheck": "corepack pnpm --filter @suno/shared typecheck && corepack pnpm --filter @suno/web typecheck && corepack pnpm --filter @suno/miniprogram typecheck"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

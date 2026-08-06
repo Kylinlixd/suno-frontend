@@ -1,0 +1,11 @@
+node_modules/
+apps/*/dist/
+apps/*/.taro/
+packages/*/dist/
+*.tsbuildinfo
+apps/*/.swc/
+.env
+.env.*
+!.env.example
+.DS_Store
+.reports/
