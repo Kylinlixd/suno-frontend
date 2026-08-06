@@ -3,11 +3,13 @@
   "private": true,
   "packageManager": "pnpm@10.14.0",
   "scripts": {
-    "dev:web": "corepack pnpm --filter @suno/web dev",
-    "build:web": "corepack pnpm --filter @suno/web build",
+    "dev:storefront": "corepack pnpm --filter @suno/storefront dev",
+    "build:storefront": "corepack pnpm --filter @suno/storefront build",
+    "dev:admin": "corepack pnpm --filter @suno/admin dev",
+    "build:admin": "corepack pnpm --filter @suno/admin build",
     "build:mini": "corepack pnpm --filter @suno/miniprogram build:weapp",
     "test": "corepack pnpm --filter @suno/shared test",
-    "typecheck": "corepack pnpm --filter @suno/shared typecheck && corepack pnpm --filter @suno/web typecheck && corepack pnpm --filter @suno/miniprogram typecheck"
+    "typecheck": "corepack pnpm --filter @suno/shared typecheck && corepack pnpm --filter @suno/storefront typecheck && corepack pnpm --filter @suno/admin typecheck && corepack pnpm --filter @suno/miniprogram typecheck"
   },
   "devDependencies": {
     "typescript": "^5.9.2",
