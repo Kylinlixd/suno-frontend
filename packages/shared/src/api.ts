@@ -1,5 +1,5 @@
 import { demoAdminMetrics, demoListings, demoOrders, demoPage, demoRecycles } from "./demo";
-import type { AdminMetrics, ApiOptions, ApiResponse, Listing, Order, Page, RecycleApplication } from "./types";
+import type { AdminMetrics, ApiOptions, ApiResponse, Listing, Order, OrderSummary, Page, RecycleApplication } from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status?: number, public readonly code?: string) {
@@ -60,6 +60,24 @@ export async function getOrders(userId?: number, options?: ApiOptions): Promise<
   const data = await request<unknown>(`/api/mall/orders${query}`, {}, options);
   const page = normalizePage(data && typeof data === "object" && !Array.isArray(data) && "items" in data ? (data as { items: unknown[] }).items : data, 20);
   return { ...page, content: page.content.map(toOrder) };
+}
+
+export async function getOrderSummary(userId?: number, lookbackDays = 365, options?: ApiOptions): Promise<OrderSummary> {
+  if (!options?.demo && !userId) throw new ApiError("请先登录", 401, "AUTH_REQUIRED");
+  const data = await request<Record<string, unknown>>(`/api/mall/orders/summary?buyerUserId=${userId ?? 1}&lookbackDays=${lookbackDays}`, {}, options);
+  return {
+    totalOrders: numberValue(data.totalOrders),
+    totalAmount: numberValue(data.totalAmount),
+    paidAmount: numberValue(data.paidAmount),
+    refundedAmount: numberValue(data.refundedAmount),
+    completedOrders: numberValue(data.completedOrders),
+    completionRate: numberValue(data.completionRate),
+    refundRate: numberValue(data.refundRate),
+    healthScore: numberValue(data.healthScore),
+    healthLevel: String(data.healthLevel ?? "UNKNOWN"),
+    payStatusCounts: numberMap(data.payStatusCounts),
+    fulfillStatusCounts: numberMap(data.fulfillStatusCounts)
+  };
 }
 
 export const getRecycles = (options?: ApiOptions) => options?.demo
@@ -187,10 +205,21 @@ function parseListingId(value: string): number {
   return id;
 }
 
+function numberValue(value: unknown): number {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function numberMap(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, numberValue(item)]));
+}
+
 function demoResponse<T>(path: string, method: string, body?: BodyInit | null): T {
   if (path.includes("/listings/") && method === "GET") return demoListings.find((listing) => listing.id === path.split("/").pop()) as T;
   if (path.includes("/listings") && method === "GET") return demoPage(demoListings) as T;
   if (path === "/api/mall/orders" && method === "POST") return { orderNo: `DEMO-${Date.now()}` } as T;
+  if (path.includes("/api/mall/orders/summary") && method === "GET") return { totalOrders: 3, totalAmount: 26798, paidAmount: 26299, refundedAmount: 499, completedOrders: 1, completionRate: 33.33, refundRate: 1.86, healthScore: 84, healthLevel: "GOOD", payStatusCounts: { PAID: 2, UNPAID: 1 }, fulfillStatusCounts: { DELIVERED: 1, COMPLETED: 1, WAIT_PAY: 1 } } as T;
   if (path.includes("/track") && method === "GET") return { trackingNo: "SF1468209381", status: "运输中", events: [{ actionType: "ORDER_SHIPPED", detail: "包裹已离开发货仓", createdAt: "2026-08-05 10:20" }] } as T;
   if (path.includes("/api/admin/recycle/orders") && method === "GET") return demoPage(demoRecycles) as T;
   if (path.includes("/api/admin/payment/replay-tasks/summary") && method === "GET") return { pending: 2, processing: 1, success: 18, dead: 0, readyToConsume: 2 } as T;

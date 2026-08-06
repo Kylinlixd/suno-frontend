@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addFavorite, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminSecurityTimeline, getFavorites, getListings, getOrders, getPaymentReplaySummary, normalizePage, queryOrderTrack, unwrapResponse } from "./index";
+import { addFavorite, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminSecurityTimeline, getFavorites, getListings, getOrderSummary, getOrders, getPaymentReplaySummary, normalizePage, queryOrderTrack, unwrapResponse } from "./index";
 import { createSessionClient, type StorageAdapter } from "./session";
 
 describe("unwrapResponse", () => {
@@ -98,5 +98,13 @@ describe("unwrapResponse", () => {
       return new Response("event_type,count\nLOGIN,2\n", { status: 200 });
     };
     await expect(downloadSecurityExportTask("task-1", { baseUrl: "http://api", fetcher })).resolves.toBe("event_type,count\nLOGIN,2\n");
+  });
+
+  it("maps the buyer order summary endpoint", async () => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://api/api/mall/orders/summary?buyerUserId=1&lookbackDays=365");
+      return new Response(JSON.stringify({ success: true, message: "OK", data: { totalOrders: 3, totalAmount: "26798.00", paidAmount: 26299, refundedAmount: 499, completedOrders: 1, completionRate: "33.33", refundRate: 33.33, healthScore: 74, healthLevel: "GOOD" } }), { status: 200 });
+    };
+    await expect(getOrderSummary(1, 365, { baseUrl: "http://api", fetcher })).resolves.toMatchObject({ totalOrders: 3, totalAmount: 26798, paidAmount: 26299, refundedAmount: 499, completedOrders: 1, completionRate: 33.33, healthLevel: "GOOD" });
   });
 });

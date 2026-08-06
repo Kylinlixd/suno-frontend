@@ -77,6 +77,20 @@ export interface Order {
   trackingNo?: string;
 }
 
+export interface OrderSummary {
+  totalOrders: number;
+  totalAmount: number;
+  paidAmount: number;
+  refundedAmount: number;
+  completedOrders: number;
+  completionRate: number;
+  refundRate: number;
+  healthScore: number;
+  healthLevel: string;
+  payStatusCounts: Record<string, number>;
+  fulfillStatusCounts: Record<string, number>;
+}
+
 export interface RecycleApplication {
   id: string;
   title: string;
