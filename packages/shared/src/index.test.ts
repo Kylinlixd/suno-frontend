@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addFavorite, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminSecurityTimeline, getFavorites, getListings, getOrderSummary, getOrders, getPaymentReplaySummary, normalizePage, queryOrderTrack, unwrapResponse } from "./index";
+import { addFavorite, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminReviewRiskTopListings, getAdminSecurityTimeline, getFavorites, getListings, getOrderSummary, getOrders, getPaymentReplaySummary, normalizePage, queryOrderTrack, unwrapResponse } from "./index";
 import { createSessionClient, type StorageAdapter } from "./session";
 
 describe("unwrapResponse", () => {
@@ -106,5 +106,13 @@ describe("unwrapResponse", () => {
       return new Response(JSON.stringify({ success: true, message: "OK", data: { totalOrders: 3, totalAmount: "26798.00", paidAmount: 26299, refundedAmount: 499, completedOrders: 1, completionRate: "33.33", refundRate: 33.33, healthScore: 74, healthLevel: "GOOD" } }), { status: 200 });
     };
     await expect(getOrderSummary(1, 365, { baseUrl: "http://api", fetcher })).resolves.toMatchObject({ totalOrders: 3, totalAmount: 26798, paidAmount: 26299, refundedAmount: 499, completedOrders: 1, completionRate: 33.33, healthLevel: "GOOD" });
+  });
+
+  it("loads the admin review risk top listings", async () => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      expect(String(input)).toBe("http://api/api/admin/recycle/review-risk/top-listings?lookbackMinutes=1440&topN=10");
+      return new Response(JSON.stringify({ success: true, message: "OK", data: [{ listingId: 7, reviewCount: 12, sensitiveReviewCount: 2, sensitiveRate: 0.1667, reportCount: 3, riskScore: 26.67 }] }), { status: 200 });
+    };
+    await expect(getAdminReviewRiskTopListings({ baseUrl: "http://api", fetcher })).resolves.toMatchObject([{ listingId: 7, reportCount: 3, riskScore: 26.67 }]);
   });
 });

@@ -1,5 +1,5 @@
 import { demoAdminMetrics, demoListings, demoOrders, demoPage, demoRecycles } from "./demo";
-import type { AdminMetrics, ApiOptions, ApiResponse, Listing, Order, OrderSummary, Page, RecycleApplication } from "./types";
+import type { AdminMetrics, ApiOptions, ApiResponse, Listing, Order, OrderSummary, Page, RecycleApplication, ReviewRiskListing } from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status?: number, public readonly code?: string) {
@@ -90,6 +90,10 @@ export async function getAdminRecycles(options?: ApiOptions): Promise<Page<Recyc
 export const getAdminMetrics = (options?: ApiOptions) => request<AdminMetrics>("/api/admin/auth/security-events/summary", {}, options);
 export const getPaymentReplaySummary = (options?: ApiOptions) => request<Record<string, unknown>>("/api/admin/payment/replay-tasks/summary", {}, options);
 export const getAdminReviewRiskSummary = (options?: ApiOptions) => request<Record<string, unknown>>("/api/admin/recycle/review-risk/summary?lookbackMinutes=1440", {}, options);
+export async function getAdminReviewRiskTopListings(options?: ApiOptions): Promise<ReviewRiskListing[]> {
+  const data = await request<unknown>("/api/admin/recycle/review-risk/top-listings?lookbackMinutes=1440&topN=10", {}, options);
+  return Array.isArray(data) ? data.map(toReviewRiskListing) : [];
+}
 export const getAdminSecurityTimeline = (options?: ApiOptions) => request<Record<string, unknown>>("/api/admin/auth/security-events/timeline?lookbackMinutes=60", {}, options);
 export const createSecurityExportTask = (body: { type: string; format: string; lookbackMinutes: number; topN: number; actionTypes?: string[]; idempotencyKey: string }, options?: ApiOptions) => request<Record<string, unknown>>("/api/admin/auth/security-events/export/tasks", { method: "POST", body: JSON.stringify(body) }, options);
 export const downloadSecurityExportTask = (taskId: string, options?: ApiOptions) => requestText(`/api/admin/auth/security-events/export/tasks/${encodeURIComponent(taskId)}/download`, {}, options);
@@ -192,6 +196,18 @@ function toRecycleApplication(value: unknown): RecycleApplication {
   };
 }
 
+function toReviewRiskListing(value: unknown): ReviewRiskListing {
+  const item = value as Record<string, unknown>;
+  return {
+    listingId: numberValue(item.listingId),
+    reviewCount: numberValue(item.reviewCount),
+    sensitiveReviewCount: numberValue(item.sensitiveReviewCount),
+    sensitiveRate: numberValue(item.sensitiveRate),
+    reportCount: numberValue(item.reportCount),
+    riskScore: numberValue(item.riskScore)
+  };
+}
+
 function toRecycleStatus(value: unknown): RecycleApplication["status"] {
   if (value === "CREATED") return "SUBMITTED";
   if (value === "QUALITY_CHECKED") return "QUALITY_CONFIRMED";
@@ -224,6 +240,7 @@ function demoResponse<T>(path: string, method: string, body?: BodyInit | null): 
   if (path.includes("/api/admin/recycle/orders") && method === "GET") return demoPage(demoRecycles) as T;
   if (path.includes("/api/admin/payment/replay-tasks/summary") && method === "GET") return { pending: 2, processing: 1, success: 18, dead: 0, readyToConsume: 2 } as T;
   if (path.includes("/api/admin/recycle/review-risk/summary") && method === "GET") return { totalReviews: 31, sensitiveReviewCount: 2, sensitiveRate: 0.0645, reportCount: 4, pendingReportCount: 1, riskLevel: "LOW", recommendation: "保持当前审核策略" } as T;
+  if (path.includes("/api/admin/recycle/review-risk/top-listings") && method === "GET") return [{ listingId: 7, reviewCount: 12, sensitiveReviewCount: 2, sensitiveRate: 0.1667, reportCount: 3, riskScore: 26.67 }] as T;
   if (path.includes("/api/admin/auth/security-events/timeline") && method === "GET") return { points: [{ minute: "2026-08-06T00:20:00", total: 0 }, { minute: "2026-08-06T00:21:00", total: 2 }, { minute: "2026-08-06T00:22:00", total: 0 }] } as T;
   if (path.includes("/api/admin/auth/security-events/export/tasks") && method === "POST") return { taskId: "demo-export-1", status: "SUCCESS", fileName: "security-events-summary.csv", format: "csv" } as T;
   if (path.includes("/orders") && method === "GET") return demoPage(demoOrders) as T;

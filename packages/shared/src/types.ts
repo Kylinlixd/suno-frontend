@@ -91,6 +91,15 @@ export interface OrderSummary {
   fulfillStatusCounts: Record<string, number>;
 }
 
+export interface ReviewRiskListing {
+  listingId: number;
+  reviewCount: number;
+  sensitiveReviewCount: number;
+  sensitiveRate: number;
+  reportCount: number;
+  riskScore: number;
+}
+
 export interface RecycleApplication {
   id: string;
   title: string;
