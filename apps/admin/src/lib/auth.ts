@@ -1,10 +1,18 @@
 import { create } from "zustand";
 import { createSessionClient, jsonStorage, type ApiOptions, type AuthSession } from "@suno/shared";
 
-const demo = import.meta.env.VITE_DEMO_MODE !== "false";
+const rawDemo = import.meta.env.VITE_DEMO_MODE;
+const demo = rawDemo !== "false";
+if (import.meta.env.PROD && rawDemo !== "true" && rawDemo !== "false") {
+  // 生产构建禁止静默落入演示模式：必须显式声明
+  throw new Error("[suno] 生产构建必须显式设置 VITE_DEMO_MODE=true 或 false");
+}
 const baseUrl = import.meta.env.VITE_API_BASE_URL;
+if (import.meta.env.PROD && !demo && !baseUrl) {
+  throw new Error("[suno] 非演示模式的生产构建必须设置 VITE_API_BASE_URL");
+}
 const fallbackStorage: Storage = { getItem: () => null, setItem: () => undefined, removeItem: () => undefined, clear: () => undefined, key: () => null, length: 0 };
-const sessionClient = createSessionClient({ storage: jsonStorage(typeof localStorage === "undefined" ? fallbackStorage : localStorage), demo, baseUrl, deviceId: "suno-web" });
+const sessionClient = createSessionClient({ storage: jsonStorage(typeof localStorage === "undefined" ? fallbackStorage : localStorage), demo, baseUrl, deviceId: "suno-web", demoRole: "ADMIN" });
 
 interface AuthState {
   session: AuthSession | null;
