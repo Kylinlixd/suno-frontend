@@ -1,18 +1,25 @@
 {
   "name": "suno-frontend",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "dev:storefront": "corepack pnpm --filter @suno/storefront dev",
     "build:storefront": "corepack pnpm --filter @suno/storefront build",
     "dev:admin": "corepack pnpm --filter @suno/admin dev",
     "build:admin": "corepack pnpm --filter @suno/admin build",
+    "dev:mini": "corepack pnpm --filter @suno/miniprogram dev:weapp",
     "build:mini": "corepack pnpm --filter @suno/miniprogram build:weapp",
     "test": "corepack pnpm --filter @suno/shared test",
+    "test:storefront": "corepack pnpm --filter @suno/storefront test",
+    "lint": "eslint .",
     "typecheck": "corepack pnpm --filter @suno/shared typecheck && corepack pnpm --filter @suno/storefront typecheck && corepack pnpm --filter @suno/admin typecheck && corepack pnpm --filter @suno/miniprogram typecheck"
   },
   "devDependencies": {
+    "eslint": "^9.36.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "typescript": "^5.9.2",
+    "typescript-eslint": "^8.44.0",
     "vitest": "^3.2.4"
   }
 }

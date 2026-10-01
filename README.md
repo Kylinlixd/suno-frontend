@@ -133,11 +133,15 @@ VITE_DEMO_MODE=true
 TARO_APP_DEMO_MODE=true
 ```
 
+**生产构建必须显式声明运行模式**：`VITE_DEMO_MODE` / `TARO_APP_DEMO_MODE` 未设置时，生产包会在启动时直接报错，避免静默回落到演示数据；非演示模式还要求显式设置 `VITE_API_BASE_URL`。
+
 ### 连接真实 Java 后端
 
 用户前台：复制 `apps/storefront/.env.example` 为 `apps/storefront/.env.local`。
 
 运营后台：复制 `apps/admin/.env.example` 为 `apps/admin/.env.local`。
+
+小程序：复制 `apps/miniprogram/.env.example` 为 `apps/miniprogram/.env.local`（注意：Taro 只从 `.env` 文件读取 `TARO_APP_*` 变量，shell 环境变量不生效）。
 
 然后设置：
 
@@ -223,21 +227,26 @@ packages/
 │       ├── demo.ts           演示数据
 │       └── index.test.ts     共享层测试
 └── tokens/
-    └── src/index.css         设计 token
+    └── src/
+        ├── index.css         设计 token 变量
+        ├── web.css           两端共享基础样式（reset、按钮、登录弹窗等）
+        ├── storefront.css    用户前台样式
+        └── admin.css         运营后台样式
 ```
 
 ## 后端接口边界
 
 共享层对接 Java 后端的主要接口：
 
-- `/api/auth`：登录、当前用户、刷新 token、退出登录
-- `/api/mall/listings`：在售商品
-- `/api/mall/orders`：下单、订单列表、取消、确认收货、物流
-- `/api/mall/favorites`：收藏和取消收藏
+- `/api/auth`：登录、当前用户、刷新 token、退出登录（登录响应不含 `userId`，共享层登录后自动调 `/api/auth/me` 回填）
+- `/api/mall/listings`：在售商品（后端无单商品接口，详情页经列表查询）
+- `/api/mall/orders`：下单、订单列表、取消、确认收货、物流（物流轨迹字段为 `timeline`）
+- `/api/mall/favorites`：收藏和取消收藏（列表接口不携带 favorite 字段，收藏态经收藏列表回填）
+- `/api/mall/reviews`：商品评价列表（评分、追评、商家回复、有用数）
 - `/api/recycle/orders`：提交回收申请
 - `/api/admin/recycle`：回收审核和上架
 - `/api/admin/payment`：支付重放摘要
-- `/api/admin/auth/security-events`：风险摘要、导出任务和文件下载
+- `/api/admin/auth/security-events`：安全事件摘要、时间线、导出任务和文件下载
 
 共享层兼容后端的两种成功响应：
 
@@ -262,6 +271,7 @@ packages/
 
 ```bash
 corepack pnpm test
+corepack pnpm lint
 corepack pnpm typecheck
 corepack pnpm build:storefront
 corepack pnpm build:admin

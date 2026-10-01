@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: corepack enable
+      - run: corepack pnpm install --frozen-lockfile
+      - run: corepack pnpm lint
+      - run: corepack pnpm test
+      - run: corepack pnpm test:storefront
+      - run: corepack pnpm typecheck
+      # 生产构建必须显式选择运行模式（见 README“演示模式”），CI 统一以 demo 模式产出可运行的产物
+      - run: corepack pnpm build:storefront
+        env:
+          VITE_DEMO_MODE: "true"
+      - run: corepack pnpm build:admin
+        env:
+          VITE_DEMO_MODE: "true"
+      - run: echo 'TARO_APP_DEMO_MODE=true' > apps/miniprogram/.env.local
+      - run: corepack pnpm build:mini
