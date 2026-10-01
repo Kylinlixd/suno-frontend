@@ -1,5 +1,11 @@
 {
   "name": "@suno/tokens",
   "private": true,
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "exports": {
+    "./src/index.css": "./src/index.css",
+    "./src/web.css": "./src/web.css",
+    "./src/storefront.css": "./src/storefront.css",
+    "./src/admin.css": "./src/admin.css"
+  }
 }
