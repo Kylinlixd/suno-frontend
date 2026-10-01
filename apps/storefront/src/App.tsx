@@ -14,7 +14,7 @@ export default function App() {
 function CustomerShell() {
   return <>
     <SunoNav />
-    <main className="w-full max-w-full overflow-x-hidden">
+    <main className="page-flow">
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/market" element={<MarketPage />} />
