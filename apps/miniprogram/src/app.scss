@@ -10,3 +10,13 @@ view, text, navigator, button, input, textarea { box-sizing: border-box; }
 .mini-order-action { margin-top: 22rpx; min-height: 64rpx; border: 1px solid rgba(21,23,20,.14); background: transparent; border-radius: 999rpx; color: #151714; font-size: 21rpx; }.mini-order-action-lime { border-color: #d8f449; background: #d8f449; }
 .mini-account { padding-top: 110rpx; }.mini-avatar { display: grid; place-items: center; width: 100rpx; height: 100rpx; margin-bottom: 34rpx; background: #151714; color: #d8f449; border-radius: 50%; font-size: 34rpx; }.mini-account-links { display: grid; margin-top: 100rpx; border-top: 1px solid rgba(21,23,20,.14); }.mini-account-links navigator { display: flex; justify-content: space-between; border-bottom: 1px solid rgba(21,23,20,.14); padding: 32rpx 0; font-size: 23rpx; }.mini-account-links navigator text:last-child { color: #858a80; font-size: 19rpx; }.mini-account-note { margin-top: 140rpx; padding: 42rpx 34rpx; background: #d8f449; border-radius: 18rpx; font-size: 36rpx; font-weight: 800; line-height: 1.02; letter-spacing: -2rpx; }
 .mini-login { display: grid; gap: 18rpx; padding: 28rpx; background: white; border-radius: 18rpx; }.mini-login .mini-button { margin-top: 4rpx; }
+.mini-button:active, .mini-order-action:active { opacity: .82; transform: scale(.985); }
+.mini-logout-group { display: grid; gap: 16rpx; }
+.mini-price-group { display: flex; align-items: baseline; gap: 8rpx; flex: 0 0 auto; }
+.mini-price-old { color: #979b91; font-size: 17rpx; font-weight: 400; text-decoration: line-through; }
+.mini-filters-sort { margin: -26rpx 0 42rpx; }
+.mini-filter-sort { color: #a3a89d; border: 1px solid rgba(21,23,20,.14); }
+.mini-filter-sort.active { background: #d8f449; color: #151714; border-color: #d8f449; }
+.mini-order-actions { display: flex; gap: 16rpx; }
+.mini-order-actions .mini-order-action { flex: 1; margin-top: 22rpx; }
+.mini-reviews { display: grid; gap: 22rpx; margin-top: 74rpx; padding-top: 48rpx; border-top: 1px solid rgba(21,23,20,.14); }.mini-reviews-title { margin-bottom: 6rpx; font-size: 30rpx; font-weight: 800; letter-spacing: -1rpx; }.mini-review { display: grid; gap: 10rpx; padding: 26rpx; background: white; border-radius: 16rpx; }.mini-review-stars { color: #d9a441; font-size: 22rpx; letter-spacing: 4rpx; }.mini-review-content { font-size: 24rpx; line-height: 1.55; }.mini-review-reply { padding: 18rpx 20rpx; background: rgba(216,244,73,.24); border-radius: 12rpx; color: #5c6b33; font-size: 21rpx; line-height: 1.5; }.mini-review-meta { color: #979b92; font-size: 18rpx; }
