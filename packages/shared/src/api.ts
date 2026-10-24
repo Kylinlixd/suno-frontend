@@ -1,7 +1,7 @@
-import { demoAdminMetrics, demoListings, demoOrders, demoPage, demoRecycles } from "./demo";
+import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminReport, demoAdminUsers, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycles, demoRefunds } from "./demo";
 import { hmacSha256Hex } from "./paySignature";
 import { placeholderImage } from "./placeholder";
-import type { AdminMetrics, ApiOptions, ApiResponse, Listing, ListingFilters, Order, OrderFilters, OrderSummary, Page, PaymentReplaySummary, RecycleApplication, Review, ReviewRiskListing, ReviewRiskSummary, ReviewSummary, SessionList } from "./types";
+import type { Address, AddressPayload, AdminMetrics, ApiOptions, ApiResponse, CartEntry, Category, CouponSummary, Listing, ListingFilters, NotificationItem, Order, OrderFilters, OrderSummary, Page, PaymentReplaySummary, PointsLedger, RecycleApplication, RefundRecord, Review, ReviewRiskListing, ReviewRiskSummary, ReviewSummary, SessionList } from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status?: number, public readonly code?: string) {
@@ -80,26 +80,54 @@ export async function requestText(path: string, init: RequestInit = {}, options:
 export async function getListings(filters: ListingFilters = {}, options?: ApiOptions): Promise<Page<Listing>> {
   const params = new URLSearchParams({ minStock: "1" });
   if (filters.grade) params.set("grade", filters.grade);
+  if (filters.keyword) params.set("keyword", filters.keyword);
+  if (filters.categoryId != null) params.set("categoryId", String(filters.categoryId));
   if (filters.sortBy) params.set("sortBy", filters.sortBy);
   if (filters.sortOrder) params.set("sortOrder", filters.sortOrder);
-  const page = normalizePage<Listing>(await request<unknown>(`/api/mall/listings?${params.toString()}`, {}, options), 20);
+  if (filters.page != null) params.set("page", String(filters.page));
+  if (filters.size != null) params.set("size", String(filters.size));
+  const page = normalizePage<Listing>(await request<unknown>(`/api/mall/listings?${params.toString()}`, {}, options), filters.size ?? 20);
   let listings = page.content.map(toListing);
-  // demo 后端不解析筛选参数，客户端应用同一套过滤与排序
+  // demo 后端不解析筛选参数，客户端应用同一套过滤、排序与分页
   if (options?.demo) {
     if (filters.grade) listings = listings.filter((listing) => listing.grade === filters.grade);
+    if (filters.categoryId != null) {
+      const categoryName = demoCategories.find((category) => category.categoryId === filters.categoryId)?.name;
+      if (categoryName) listings = listings.filter((listing) => listing.category === categoryName);
+    }
+    if (filters.keyword) {
+      const keyword = filters.keyword.trim().toLowerCase();
+      if (keyword) listings = listings.filter((listing) => listing.name.toLowerCase().includes(keyword) || listing.brand.toLowerCase().includes(keyword));
+    }
     if (filters.sortBy) {
       const direction = filters.sortOrder === "desc" ? -1 : 1;
       listings = [...listings].sort((a, b) => filters.sortBy === "price" ? (a.price - b.price) * direction : a.name.localeCompare(b.name) * direction);
     }
+    const page0 = filters.page ?? 0;
+    const size0 = filters.size ?? 20;
+    listings = listings.slice(page0 * size0, (page0 + 1) * size0);
   }
   return { ...page, content: listings };
 }
 
 export async function getListing(id: string, options?: ApiOptions): Promise<Listing> {
-  // 后端暂无单商品接口，从列表中查找；列表经 React Query 缓存，成本可控
+  if (!options?.demo) {
+    // M1 后端提供单商品接口；浏览接口匿名可读，未登录也可看详情
+    const parsedId = Number(id);
+    if (!Number.isInteger(parsedId)) throw new ApiError("商品编号无效", 400, "LISTING_ID_INVALID");
+    return toListing(await request<unknown>(`/api/mall/listings/${encodeURIComponent(id)}`, {}, options));
+  }
+  // demo 后端无单商品接口，从列表中查找；列表经 React Query 缓存，成本可控
   const listing = (await getListings({}, options)).content.find((item) => item.id === id);
   if (!listing) throw new ApiError("商品不存在", 404, "LISTING_NOT_FOUND");
   return listing;
+}
+
+/** M1 分类目录（匿名可读） */
+export async function getCategories(options?: ApiOptions): Promise<Category[]> {
+  if (options?.demo) return demoCategories;
+  const data = await request<unknown>("/api/mall/categories", {}, options);
+  return Array.isArray(data) ? data.map(toCategory) : [];
 }
 
 export async function getOrders(userId: number | undefined, options?: ApiOptions, filters: OrderFilters = {}): Promise<Page<Order>> {
@@ -139,9 +167,28 @@ export async function getOrderSummary(userId: number | undefined, lookbackDays =
   };
 }
 
-export const getRecycles = (options?: ApiOptions) => options?.demo
-  ? request<Page<RecycleApplication>>("/api/recycle/orders?page=0&size=20", {}, options)
-  : Promise.reject(new ApiError("用户回收记录接口未提供", 404, "RECYCLE_HISTORY_UNAVAILABLE"));
+export const getRecycles = async (options?: ApiOptions): Promise<Page<RecycleApplication>> => {
+  // M1 用户回收历史：userId 由后端从 JWT 解析，请求经会话 requester 携带令牌
+  const page = normalizePage(await request<unknown>("/api/recycle/orders/my?page=0&size=20", {}, options), 20);
+  return { ...page, content: page.content.map(toRecycleApplication) };
+};
+
+/** M1 我的积分流水（含当前余额） */
+export async function getMyPointsLedger(options?: ApiOptions): Promise<PointsLedger> {
+  const data = await request<unknown>("/api/recycle/points/ledger?page=0&size=10", {}, options);
+  const summary = (data ?? {}) as Record<string, unknown>;
+  const page = normalizePage(data, 10);
+  const entries = page.content.map((item) => {
+    const entry = item as Record<string, unknown>;
+    return {
+      id: numberValue(entry.id),
+      pointsDelta: numberValue(entry.pointsDelta),
+      reason: String(entry.reason ?? ""),
+      createdAt: String(entry.createdAt ?? "")
+    };
+  });
+  return { ...page, content: entries, balance: numberValue(summary.balance) };
+}
 export async function getAdminRecycles(options?: ApiOptions): Promise<Page<RecycleApplication>> {
   const page = normalizePage(await request<unknown>("/api/admin/recycle/orders", {}, options), 50);
   return { ...page, content: page.content.map(toRecycleApplication) };
@@ -196,11 +243,256 @@ export const revokeAllSessions = (options?: ApiOptions) => request<void>("/api/a
 export const createSecurityExportTask = (body: { type: string; format: string; lookbackMinutes: number; topN: number; actionTypes?: string[]; idempotencyKey: string }, options?: ApiOptions) => request<Record<string, unknown>>("/api/admin/auth/security-events/export/tasks", { method: "POST", body: JSON.stringify(body) }, options);
 export const downloadSecurityExportTask = (taskId: string, options?: ApiOptions) => requestText(`/api/admin/auth/security-events/export/tasks/${encodeURIComponent(taskId)}/download`, {}, options);
 
-export function createResaleOrder(listingId: string, userId: number | undefined, options?: ApiOptions) {
+export interface CheckoutPayload {
+  listingId: string;
+  userId?: number;
+  addressId?: number;
+  couponUserId?: number;
+}
+
+/** M2 结算下单：可选携带收货地址与满减券；响应含 discountAmount/payableAmount */
+export function createResaleOrder(listingId: string, userId: number | undefined, options?: ApiOptions, extras?: { addressId?: number; couponUserId?: number }) {
   if (!options?.demo && !Number.isInteger(userId)) return Promise.reject(new ApiError("请先登录", 401, "AUTH_REQUIRED"));
   const parsedListingId = Number(listingId);
   if (!options?.demo && !Number.isInteger(parsedListingId)) return Promise.reject(new ApiError("商品编号无效", 400, "LISTING_ID_INVALID"));
-  return request<Record<string, unknown>>("/api/mall/orders", { method: "POST", body: JSON.stringify({ buyerUserId: userId, listingId: options?.demo ? listingId : parsedListingId }) }, options);
+  const body: Record<string, unknown> = { listingId: options?.demo ? listingId : parsedListingId };
+  if (extras?.addressId != null) body.addressId = extras.addressId;
+  if (extras?.couponUserId != null) body.couponUserId = extras.couponUserId;
+  return request<Record<string, unknown>>("/api/mall/orders", { method: "POST", body: JSON.stringify(body) }, options);
+}
+
+// ==================== M2 地址 ====================
+
+export async function getAddresses(options?: ApiOptions): Promise<Address[]> {
+  const data = await request<unknown>("/api/addresses", {}, options);
+  return Array.isArray(data) ? data.map(toAddress) : [];
+}
+
+export function createAddress(payload: AddressPayload, options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/addresses", { method: "POST", body: JSON.stringify(payload) }, options);
+}
+
+export function updateAddress(addressId: number, payload: AddressPayload, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/addresses/${encodeURIComponent(addressId)}`, { method: "PUT", body: JSON.stringify(payload) }, options);
+}
+
+export function deleteAddress(addressId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/addresses/${encodeURIComponent(addressId)}`, { method: "DELETE" }, options);
+}
+
+export function setDefaultAddress(addressId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/addresses/${encodeURIComponent(addressId)}/default`, { method: "POST" }, options);
+}
+
+function toAddress(value: unknown): Address {
+  const item = value as Record<string, unknown>;
+  return {
+    addressId: numberValue(item.addressId ?? item.id),
+    receiverName: String(item.receiverName ?? ""),
+    receiverPhone: String(item.receiverPhone ?? ""),
+    province: String(item.province ?? ""),
+    city: String(item.city ?? ""),
+    district: String(item.district ?? ""),
+    detailAddress: String(item.detailAddress ?? ""),
+    isDefault: Boolean(item.isDefault)
+  };
+}
+
+// ==================== M2 购物车 ====================
+
+export async function getCart(options?: ApiOptions): Promise<Page<CartEntry>> {
+  const data = await request<unknown>("/api/cart", {}, options);
+  const page = normalizePage(data, 50);
+  return { ...page, content: page.content.map(toCartEntry) };
+}
+
+export function addToCart(listingId: string | number, options?: ApiOptions) {
+  const parsed = Number(listingId);
+  if (!options?.demo && !Number.isInteger(parsed)) return Promise.reject(new ApiError("商品编号无效", 400, "LISTING_ID_INVALID"));
+  return request<Record<string, unknown>>("/api/cart", { method: "POST", body: JSON.stringify({ listingId: options?.demo ? listingId : parsed }) }, options);
+}
+
+export function removeFromCart(cartItemId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/cart/${encodeURIComponent(cartItemId)}`, { method: "DELETE" }, options);
+}
+
+function toCartEntry(value: unknown): CartEntry {
+  const item = value as Record<string, unknown>;
+  const listingId = numberValue(item.listingId);
+  return {
+    cartItemId: numberValue(item.cartItemId),
+    listingId,
+    brand: String(item.brand ?? "Suno"),
+    model: String(item.model ?? "商品"),
+    grade: item.grade ? String(item.grade) : undefined,
+    salePrice: numberValue(item.salePrice),
+    stock: numberValue(item.stock),
+    listingStatus: String(item.listingStatus ?? "ON_SHELF"),
+    image: String(item.image ?? placeholderImage(`suno-cart-${listingId}`)),
+    addedAt: String(item.addedAt ?? ""),
+    orderable: Boolean(item.orderable)
+  };
+}
+
+// ==================== M2 优惠券 ====================
+
+export async function getClaimableCoupons(options?: ApiOptions): Promise<CouponSummary[]> {
+  const data = await request<unknown>("/api/mall/coupons", {}, options);
+  return Array.isArray(data) ? data.map(toCoupon) : [];
+}
+
+export function claimCoupon(couponId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/mall/coupons/${encodeURIComponent(couponId)}/claim`, { method: "POST" }, options);
+}
+
+export async function getMyCoupons(status?: "UNUSED" | "USED", options?: ApiOptions): Promise<Page<CouponSummary>> {
+  const query = status ? `?status=${status}` : "";
+  const data = await request<unknown>(`/api/mall/coupons/mine${query}`, {}, options);
+  const page = normalizePage(data, 20);
+  return { ...page, content: page.content.map(toCoupon) };
+}
+
+function toCoupon(value: unknown): CouponSummary {
+  const item = value as Record<string, unknown>;
+  return {
+    couponId: numberValue(item.couponId),
+    name: String(item.name ?? ""),
+    couponType: String(item.couponType ?? "FIXED"),
+    discountValue: numberValue(item.discountValue),
+    minOrderAmount: item.minOrderAmount == null ? undefined : numberValue(item.minOrderAmount),
+    remainingCount: item.remainingCount == null ? undefined : numberValue(item.remainingCount),
+    perUserLimit: item.perUserLimit == null ? undefined : numberValue(item.perUserLimit),
+    startTime: item.startTime ? String(item.startTime) : undefined,
+    endTime: item.endTime ? String(item.endTime) : undefined,
+    couponUserId: item.couponUserId == null ? undefined : numberValue(item.couponUserId),
+    status: item.status ? String(item.status) as CouponSummary["status"] : undefined,
+    expireAt: item.expireAt ? String(item.expireAt) : undefined
+  };
+}
+
+// ==================== M2 售后 ====================
+
+export function applyRefund(orderNo: string, reason: string, options?: ApiOptions) {
+  if (!options?.demo && reason.trim().length < 5) return Promise.reject(new ApiError("请填写至少 5 个字的售后原因", 400, "PARAM_INVALID"));
+  return request<Record<string, unknown>>(`/api/mall/orders/${encodeURIComponent(orderNo)}/refund-apply`, { method: "POST", body: JSON.stringify({ reason }) }, options);
+}
+
+export async function getMyRefunds(options?: ApiOptions): Promise<Page<RefundRecord>> {
+  const data = await request<unknown>("/api/mall/refunds", {}, options);
+  const page = normalizePage(data, 20);
+  return { ...page, content: page.content.map(toRefund) };
+}
+
+export function cancelRefund(refundId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/mall/refunds/${encodeURIComponent(refundId)}/cancel`, { method: "POST" }, options);
+}
+
+function toRefund(value: unknown): RefundRecord {
+  const item = value as Record<string, unknown>;
+  return {
+    refundId: numberValue(item.refundId),
+    refundNo: String(item.refundNo ?? ""),
+    orderNo: item.orderNo ? String(item.orderNo) : undefined,
+    amount: numberValue(item.amount),
+    reason: item.reason ? String(item.reason) : undefined,
+    status: String(item.status ?? "PENDING"),
+    createdAt: String(item.createdAt ?? ""),
+    processedAt: item.processedAt ? String(item.processedAt) : undefined
+  };
+}
+
+// ==================== M3 运营后台 ====================
+
+export async function adminPageListings(status?: string, page = 0, size = 20, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (status) params.set("status", status);
+  return normalizePage(await request<unknown>(`/api/admin/recycle/listings?${params}`, {}, options), size);
+}
+
+export function adminAdjustListingPrice(listingId: number, salePrice: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/recycle/listings/${encodeURIComponent(listingId)}/price`, { method: "POST", body: JSON.stringify({ salePrice }) }, options);
+}
+
+export function adminSetListingShelf(listingId: number, onShelf: boolean, options?: ApiOptions) {
+  const action = onShelf ? "on-shelf" : "off-shelf";
+  return request<Record<string, unknown>>(`/api/admin/recycle/listings/${encodeURIComponent(listingId)}/${action}`, { method: "POST" }, options);
+}
+
+export async function adminPageOrders(filters: { payStatus?: string; fulfillStatus?: string; keyword?: string; page?: number; size?: number } = {}, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
+  const params = new URLSearchParams({ page: String(filters.page ?? 0), size: String(filters.size ?? 20) });
+  if (filters.payStatus) params.set("payStatus", filters.payStatus);
+  if (filters.fulfillStatus) params.set("fulfillStatus", filters.fulfillStatus);
+  if (filters.keyword) params.set("keyword", filters.keyword);
+  return normalizePage(await request<unknown>(`/api/admin/recycle/resale-orders?${params}`, {}, options), filters.size ?? 20);
+}
+
+export function adminGetOrderDetail(orderNo: string, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/recycle/resale-orders/${encodeURIComponent(orderNo)}`, {}, options);
+}
+
+export async function adminPageUsers(keyword?: string, status?: string, page = 0, size = 20, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
+  const params = new URLSearchParams({ page: String(page), size: String(size) });
+  if (keyword) params.set("keyword", keyword);
+  if (status) params.set("status", status);
+  return normalizePage(await request<unknown>(`/api/admin/users?${params}`, {}, options), size);
+}
+
+export function adminSetUserStatus(userId: number, accountStatus: "ACTIVE" | "BANNED", options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/users/${encodeURIComponent(userId)}/status`, { method: "POST", body: JSON.stringify({ accountStatus }) }, options);
+}
+
+export async function adminListCoupons(status?: string, options?: ApiOptions): Promise<Array<Record<string, unknown>>> {
+  const query = status ? `?status=${status}` : "";
+  const data = await request<unknown>(`/api/admin/coupons${query}`, {}, options);
+  return Array.isArray(data) ? data as Array<Record<string, unknown>> : [];
+}
+
+export function adminCreateCoupon(payload: { name: string; minOrderAmount: number; discountValue: number; totalCount: number; perUserLimit: number; effectiveDays: number }, options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/admin/coupons", { method: "POST", body: JSON.stringify(payload) }, options);
+}
+
+export function adminDisableCoupon(couponId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/coupons/${encodeURIComponent(couponId)}/disable`, { method: "POST" }, options);
+}
+
+export function adminReportOverview(trendDays = 14, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/reports/overview?trendDays=${trendDays}`, {}, options);
+}
+
+// ==================== M2 通知 ====================
+
+export async function getNotifications(page = 0, size = 20, options?: ApiOptions): Promise<Page<NotificationItem> & { unreadCount: number }> {
+  const data = await request<unknown>(`/api/notifications?page=${page}&size=${size}`, {}, options);
+  const normalized = normalizePage(data, size);
+  const summary = (data ?? {}) as Record<string, unknown>;
+  return { ...normalized, content: normalized.content.map(toNotification), unreadCount: numberValue(summary.unreadCount) };
+}
+
+export async function getUnreadNotificationCount(options?: ApiOptions): Promise<number> {
+  const data = await request<Record<string, unknown>>("/api/notifications/unread-count", {}, options);
+  return numberValue((data ?? {}).unreadCount);
+}
+
+export function markNotificationRead(id: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "POST" }, options);
+}
+
+export function markAllNotificationsRead(options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/notifications/read-all", { method: "POST" }, options);
+}
+
+function toNotification(value: unknown): NotificationItem {
+  const item = value as Record<string, unknown>;
+  return {
+    id: numberValue(item.id),
+    title: String(item.title ?? ""),
+    content: String(item.content ?? ""),
+    notificationType: String(item.notificationType ?? ""),
+    relatedId: item.relatedId == null ? undefined : numberValue(item.relatedId),
+    relatedType: item.relatedType ? String(item.relatedType) : undefined,
+    isRead: Boolean(item.isRead),
+    createdAt: String(item.createdAt ?? "")
+  };
 }
 
 export async function getFavorites(userId: number | undefined, options?: ApiOptions): Promise<Page<Listing>> {
@@ -295,7 +587,7 @@ function toListing(value: unknown): Listing {
     id,
     name: item.name ? model : `${brand} ${model}`,
     brand,
-    category: String(item.category ?? "数码"),
+    category: String(item.categoryName ?? item.category ?? "数码"),
     grade: item.grade ? String(item.grade) : undefined,
     condition: String(item.condition ?? gradeLabel(item.grade) ?? "待确认"),
     price,
@@ -382,13 +674,28 @@ function toReview(value: unknown): Review {
   };
 }
 
+function toCategory(value: unknown): Category {
+  const item = value as Record<string, unknown>;
+  const parentId = item.parentId == null ? undefined : Number(item.parentId);
+  return {
+    categoryId: numberValue(item.categoryId ?? item.id),
+    name: String(item.name ?? ""),
+    parentId,
+    sortOrder: numberValue(item.sortOrder)
+  };
+}
+
 function toRecycleApplication(value: unknown): RecycleApplication {
   const item = value as Record<string, unknown>;
   const id = String(item.id ?? item.orderNo ?? "");
   const status = toRecycleStatus(item.status);
+  // /api/recycle/orders/my 返回 brand/model 摘要，拼出可读标题
+  const brand = item.brand == null ? undefined : String(item.brand);
+  const model = item.model == null ? undefined : String(item.model);
+  const title = item.title ? String(item.title) : brand && model && brand !== "DEMO_BRAND" ? `${brand} ${model}` : brand && brand !== "DEMO_BRAND" ? brand : (item.orderNo ? String(item.orderNo) : "回收申请");
   return {
     id,
-    title: String(item.title ?? item.orderNo ?? "回收申请"),
+    title,
     image: String(item.image ?? placeholderImage(`suno-recycle-${id}`)),
     status,
     estimatedPrice: item.estimatedPrice == null ? undefined : Number(item.estimatedPrice),
@@ -437,6 +744,16 @@ function numberMap(value: unknown): Record<string, number> {
 function demoResponse<T>(path: string, method: string, body?: BodyInit | null): T {
   if (path.includes("/listings/") && method === "GET") return demoListings.find((listing) => listing.id === path.split("/").pop()) as T;
   if (path.includes("/listings") && method === "GET") return demoPage(demoListings) as T;
+  if (path.includes("/api/mall/categories") && method === "GET") return demoCategories as T;
+  // M2：注意从特殊到一般的匹配顺序
+  if (path.includes("/api/notifications/unread-count") && method === "GET") return { unreadCount: demoNotifications.filter((item) => !item.isRead).length } as T;
+  if (path.includes("/api/notifications") && method === "GET") return { ...demoPage(demoNotifications), unreadCount: demoNotifications.filter((item) => !item.isRead).length } as T;
+  if (path.includes("/api/addresses") && method === "GET") return demoAddresses as T;
+  if (path.includes("/api/cart") && method === "GET") return demoPage(demoCartEntries) as T;
+  if (path.includes("/api/mall/coupons/mine") && method === "GET") return demoPage(demoMyCoupons) as T;
+  if (path.includes("/api/mall/coupons") && method === "GET") return demoClaimableCoupons as T;
+  if (path.includes("/api/mall/refunds") && method === "GET") return demoPage(demoRefunds) as T;
+  if (path.includes("/api/recycle/points/ledger") && method === "GET") return demoPointsLedger as T;
   if (path === "/api/auth/me") return { userId: 1, username: "Alex", role: "USER" } as T;
   if (path === "/api/auth/sessions") return { username: "Alex", total: 2, sessions: [{ deviceId: "suno-web", createdAt: "2026-08-01 09:00", expireAt: "2026-09-01 09:00", revoked: false }, { deviceId: "suno-mini", createdAt: "2026-08-03 20:12", expireAt: "2026-09-03 20:12", revoked: false }] } as T;
   if (path === "/api/mall/orders" && method === "POST") return { orderNo: `DEMO-${Date.now()}` } as T;
@@ -449,11 +766,17 @@ function demoResponse<T>(path: string, method: string, body?: BodyInit | null): 
   if (path.includes("/api/admin/recycle/review-risk/top-listings") && method === "GET") return [{ listingId: 7, reviewCount: 12, sensitiveReviewCount: 2, sensitiveRate: 0.1667, reportCount: 3, riskScore: 26.67 }] as T;
   if (path.includes("/api/admin/auth/security-events/timeline") && method === "GET") return { points: [{ minute: "2026-08-06T00:20:00", total: 0 }, { minute: "2026-08-06T00:21:00", total: 2 }, { minute: "2026-08-06T00:22:00", total: 0 }] } as T;
   if (path.includes("/api/admin/auth/security-events/export/tasks") && method === "POST") return { taskId: "demo-export-1", status: "SUCCESS", fileName: "security-events-summary.csv", format: "csv" } as T;
+  // M3 管理端（先于通用 /orders 判定）
+  if (path.includes("/api/admin/recycle/listings") && method === "GET") return demoPage(demoAdminListings) as T;
+  if (path.includes("/api/admin/recycle/resale-orders") && method === "GET") return demoPage(demoAdminOrders) as T;
+  if (path.includes("/api/admin/users") && method === "GET") return demoPage(demoAdminUsers) as T;
+  if (path.includes("/api/admin/coupons") && method === "GET") return demoAdminCoupons as T;
+  if (path.includes("/api/admin/reports/overview") && method === "GET") return demoAdminReport as T;
+  // 注意顺序：/recycle/orders/my 必须先于通用 /orders 判定
+  if (path.includes("/recycle/orders") && method === "GET") return demoPage(demoRecycles) as T;
   if (path.includes("/orders") && method === "GET") return demoPage(demoOrders) as T;
   if (path.includes("/favorites") && method === "GET") return demoListings.filter((listing) => listing.favorite) as T;
-  if (path.includes("/favorites") && (method === "POST" || method === "DELETE")) return { favorited: method === "POST" } as T;
-  if (path.includes("/recycle/orders") && method === "GET") return demoPage(demoRecycles) as T;
-  if (path.includes("security-events/summary")) return demoAdminMetrics as T;
+  if (path.includes("/favorites") && (method === "POST" || method === "DELETE")) return { favorited: method === "POST" } as T;  if (path.includes("security-events/summary")) return demoAdminMetrics as T;
   if (path === "/api/recycle/orders" && method === "POST") {
     const data = JSON.parse(String(body ?? "{}")) as Pick<RecycleApplication, "title" | "image">;
     return { id: `r-${Date.now()}`, ...data, status: "SUBMITTED", logisticsStatus: "等待审核", createdAt: new Date().toISOString() } as T;

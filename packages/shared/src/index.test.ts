@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ApiError, addFavorite, cancelOrder, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminReviewRiskTopListings, getAdminSecurityTimeline, getFavorites, getListing, getListings, getOrderSummary, getOrders, getPaymentReplaySummary, getReviews, isFavoriteListing, normalizePage, payOrder, queryOrderTrack, unwrapResponse } from "./index";
+import { ApiError, addFavorite, cancelOrder, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminReviewRiskTopListings, getAdminSecurityTimeline, getCategories, getFavorites, getListing, getListings, getMyPointsLedger, getOrderSummary, getOrders, getPaymentReplaySummary, getReviews, isFavoriteListing, normalizePage, payOrder, queryOrderTrack, unwrapResponse } from "./index";
 import { hmacSha256Hex } from "./paySignature";
 import { createSessionClient, type StorageAdapter } from "./session";
 import type { ApiOptions } from "./types";
@@ -85,7 +85,7 @@ describe("unwrapResponse", () => {
     await getAdminReviewRiskSummary({ baseUrl: "http://api", fetcher });
     await getAdminSecurityTimeline(60, { baseUrl: "http://api", fetcher });
     await createSecurityExportTask({ type: "summary", format: "csv", lookbackMinutes: 60, topN: 10, idempotencyKey: "test-export" }, { baseUrl: "http://api", fetcher });
-    expect(calls[0]).toMatchObject({ path: "http://api/api/mall/orders", method: "POST", body: JSON.stringify({ buyerUserId: 1, listingId: 7 }) });
+    expect(calls[0]).toMatchObject({ path: "http://api/api/mall/orders", method: "POST", body: JSON.stringify({ listingId: 7 }) });
     expect(calls[1]).toMatchObject({ path: "http://api/api/mall/favorites/add", method: "POST", body: JSON.stringify({ listingId: 7, userId: 1 }) });
     expect(calls[3]).toMatchObject({ path: "http://api/api/mall/orders/ORD-2/track?buyerUserId=1", method: "GET" });
     expect(calls[4]).toMatchObject({ path: "http://api/api/admin/payment/replay-tasks/summary", method: "GET" });
@@ -131,15 +131,27 @@ describe("unwrapResponse", () => {
     expect((error as ApiError).message).toBe("Bad Gateway");
   });
 
-  it("resolves a single listing via the list endpoint (backend has no detail route)", async () => {
+  it("resolves a single listing via the M1 detail route and maps category/image", async () => {
     const calls: string[] = [];
     const fetcher = async (input: RequestInfo | URL) => {
       calls.push(String(input));
-      return new Response(JSON.stringify({ success: true, message: "OK", data: [{ listingId: 7, brand: "Suno", model: "Phone", grade: "A", salePrice: 1999, stock: 2 }] }), { status: 200 });
+      return new Response(JSON.stringify({ success: true, message: "OK", data: { listingId: 7, brand: "Suno", model: "Phone", grade: "A", salePrice: 1999, stock: 2, status: "ON_SHELF", image: "https://cdn/7.jpg", categoryName: "手机", reviewCount: 3, avgRating: 4.5 } }), { status: 200 });
     };
-    await expect(getListing("7", { baseUrl: "http://api", fetcher })).resolves.toMatchObject({ id: "7", name: "Suno Phone" });
-    expect(calls).toEqual(["http://api/api/mall/listings?minStock=1"]);
-    await expect(getListing("8", { baseUrl: "http://api", fetcher })).rejects.toMatchObject({ code: "LISTING_NOT_FOUND" });
+    await expect(getListing("7", { baseUrl: "http://api", fetcher })).resolves.toMatchObject({ id: "7", name: "Suno Phone", category: "手机", image: "https://cdn/7.jpg" });
+    expect(calls).toEqual(["http://api/api/mall/listings/7"]);
+    await expect(getListing("abc", { baseUrl: "http://api", fetcher })).rejects.toMatchObject({ code: "LISTING_ID_INVALID" });
+  });
+
+  it("maps categories and my points ledger from the M1 endpoints", async () => {
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const data = url.includes("/api/mall/categories")
+        ? [{ categoryId: 1, name: "手机", parentId: null, sortOrder: 10 }]
+        : { content: [{ id: 5, pointsDelta: 200, reason: "RECYCLE_ORDER:RCY-1", createdAt: "2026-08-03 12:40" }], totalElements: 1, totalPages: 1, page: 0, size: 10, balance: 1400 };
+      return new Response(JSON.stringify({ success: true, message: "OK", data }), { status: 200 });
+    };
+    await expect(getCategories({ baseUrl: "http://api", fetcher })).resolves.toMatchObject([{ categoryId: 1, name: "手机", sortOrder: 10 }]);
+    await expect(getMyPointsLedger({ baseUrl: "http://api", fetcher })).resolves.toMatchObject({ balance: 1400, content: [{ id: 5, pointsDelta: 200, reason: "RECYCLE_ORDER:RCY-1" }] });
   });
 
   it("fills userId from /api/auth/me after login (backend login response lacks it)", async () => {

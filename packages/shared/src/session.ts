@@ -68,20 +68,30 @@ export function createSessionClient(options: SessionClientOptions) {
     }
   }
 
+  // 后端 login/register/refresh 响应不含 userId，成功后立即用 /api/auth/me 回填
+  async function establishSession(data: AuthTokens & AuthUser): Promise<AuthSession> {
+    let session: AuthSession = { ...data, deviceId: data.deviceId ?? deviceId };
+    try {
+      const user = await request<AuthUser>("/api/auth/me", {}, { ...options, token: session.accessToken });
+      session = { ...session, ...user };
+    } catch { /* me 失败不阻断登录；userId 缺失时受保护接口会提示重新登录 */ }
+    save(session);
+    return session;
+  }
+
   return {
     read,
     clear,
     async login(username: string, password: string): Promise<AuthSession> {
       if (options.demo) { const session = { accessToken: "demo-token", refreshToken: "demo-refresh", userId: 1, username: username || "Alex", role: options.demoRole ?? "USER", deviceId }; save(session); return session; }
       const data = await request<AuthTokens & AuthUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password, deviceId }) }, options);
-      let session: AuthSession = { ...data, deviceId: data.deviceId ?? deviceId };
-      // 后端 login/refresh 响应不含 userId，登录后立即用 /api/auth/me 回填
-      try {
-        const user = await request<AuthUser>("/api/auth/me", {}, { ...options, token: session.accessToken });
-        session = { ...session, ...user };
-      } catch { /* me 失败不阻断登录；userId 缺失时受保护接口会提示重新登录 */ }
-      save(session);
-      return session;
+      return await establishSession(data);
+    },
+    /** M1 注册：成功即登录（后端返回令牌，但不含 userId，需经 /api/auth/me 回填） */
+    async register(username: string, password: string): Promise<AuthSession> {
+      if (options.demo) { const session = { accessToken: "demo-token", refreshToken: "demo-refresh", userId: 1, username: username || "Alex", role: options.demoRole ?? "USER", deviceId }; save(session); return session; }
+      const data = await request<AuthTokens & AuthUser>("/api/auth/register", { method: "POST", body: JSON.stringify({ username, password, deviceId }) }, options);
+      return await establishSession(data);
     },
     refresh,
     requestText: sessionTextRequest,

@@ -57,5 +57,9 @@ em { color: #74786e; font-style: normal; }
 .login-close { position: absolute; top: 1rem; right: 1rem; width: 2rem; height: 2rem; padding: 0; border: 0; background: transparent; cursor: pointer; font-size: 1.4rem; }
 .login-error { margin: 0; color: #b35f58; font-size: .75rem; }
 .login-hint { margin: 1.4rem 0 0; color: #989c93; font-size: .68rem; line-height: 1.5; }
+.login-hint.left { margin: -.2rem 0 0; }
+.login-tabs { display: flex; gap: .4rem; margin: -1rem 0 1.6rem; padding-bottom: 1rem; border-bottom: 1px solid var(--suno-line); }
+.login-tab { border: 0; background: transparent; cursor: pointer; padding: .45rem .9rem; border-radius: 2rem; color: #989c93; font-size: .8rem; font-weight: 700; }
+.login-tab.active { background: var(--suno-ink); color: var(--suno-paper); }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }

@@ -78,6 +78,12 @@ export interface Listing {
 
 export interface ListingFilters {
   grade?: string;
+  /** M1 关键词搜索：匹配品牌/型号/SN（大小写不敏感包含） */
+  keyword?: string;
+  /** M1 分类过滤：后端 suno_category 主键 */
+  categoryId?: number;
+  page?: number;
+  size?: number;
   sortBy?: "createdAt" | "price";
   sortOrder?: "asc" | "desc";
 }
@@ -151,6 +157,104 @@ export interface ReviewSummary {
   reviewCount: number;
   avgRating: number;
   items: Review[];
+}
+
+/** M1 商品分类目录项（GET /api/mall/categories） */
+export interface Category {
+  categoryId: number;
+  name: string;
+  parentId?: number | null;
+  sortOrder: number;
+}
+
+/** M1 用户积分流水条目（GET /api/recycle/points/ledger） */
+export interface PointsEntry {
+  id: number;
+  pointsDelta: number;
+  reason: string;
+  createdAt: string;
+}
+
+/** M2 收货地址 */
+export interface Address {
+  addressId: number;
+  receiverName: string;
+  receiverPhone: string;
+  province: string;
+  city: string;
+  district: string;
+  detailAddress: string;
+  isDefault: boolean;
+}
+
+export interface AddressPayload {
+  receiverName: string;
+  receiverPhone: string;
+  province: string;
+  city: string;
+  district: string;
+  detailAddress: string;
+  isDefault?: boolean;
+}
+
+/** M2 购物车条目（二手单件，数量恒 1） */
+export interface CartEntry {
+  cartItemId: number;
+  listingId: number;
+  brand: string;
+  model: string;
+  grade?: string;
+  salePrice: number;
+  stock: number;
+  listingStatus: string;
+  image: string;
+  addedAt: string;
+  orderable: boolean;
+}
+
+/** M2 优惠券摘要（可领列表与我的券共用） */
+export interface CouponSummary {
+  couponId: number;
+  name: string;
+  couponType: string;
+  discountValue: number;
+  minOrderAmount?: number;
+  remainingCount?: number;
+  perUserLimit?: number;
+  startTime?: string;
+  endTime?: string;
+  couponUserId?: number;
+  status?: "UNUSED" | "USED";
+  expireAt?: string;
+}
+
+/** M2 售后记录 */
+export interface RefundRecord {
+  refundId: number;
+  refundNo: string;
+  orderNo?: string;
+  amount: number;
+  reason?: string;
+  status: "PENDING" | "PROCESSING" | "PROCESSED" | "CANCELLED" | string;
+  createdAt: string;
+  processedAt?: string;
+}
+
+/** M2 站内通知 */
+export interface NotificationItem {
+  id: number;
+  title: string;
+  content: string;
+  notificationType: string;
+  relatedId?: number;
+  relatedType?: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+/** M1 用户积分流水分页 + 当前余额 */
+export interface PointsLedger extends Page<PointsEntry> {
+  balance: number;
 }
 
 export interface RecycleApplication {

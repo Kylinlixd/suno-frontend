@@ -125,3 +125,24 @@
   .metric-card strong { margin-top: 1.5rem; font-size: 2.2rem; }
   .principles { grid-template-columns: 1fr; }
 }
+
+/* ==================== M3 管理页扩展 ==================== */
+.admin-table-row { display: grid; grid-template-columns: 2.2fr 1.1fr 1.1fr 1.2fr .9fr; gap: .8rem; align-items: center; }
+.admin-row-actions { display: flex; gap: .8rem; }
+.admin-keyword { border: 1px solid rgba(21,23,20,.15); border-radius: .5rem; padding: .5rem .7rem; font-size: .78rem; min-width: 200px; }
+.admin-detail-panel { width: min(100%, 520px); }
+.admin-detail { display: grid; gap: .7rem; margin: 0; }
+.admin-detail > div { display: grid; grid-template-columns: 6rem 1fr; gap: .8rem; }
+.admin-detail dt { color: #898e84; font-size: .74rem; font-weight: 700; }
+.admin-detail dd { margin: 0; font-size: .84rem; }
+.coupon-admin-form { display: grid; gap: .9rem; }
+.coupon-admin-form label { display: grid; gap: .3rem; color: #6d7567; font-size: .72rem; font-weight: 700; }
+.coupon-admin-form input { border: 1px solid rgba(21,23,20,.15); border-radius: .5rem; padding: .55rem .65rem; font-size: .84rem; }
+.coupon-admin-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: .6rem; }
+.report-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.report-card { background: #f6f5f0; border-radius: .8rem; padding: 1rem 1.1rem; display: grid; gap: .4rem; }
+.report-card span { color: #898e84; font-size: .7rem; font-weight: 700; }
+.report-card strong { font-size: 1.5rem; }
+.report-trend { display: flex; align-items: flex-end; gap: .4rem; height: 160px; }
+.trend-bar { flex: 1; display: flex; align-items: flex-end; height: 100%; }
+.trend-bar i { display: block; width: 100%; background: var(--suno-ink); border-radius: .3rem .3rem 0 0; min-height: 4px; }

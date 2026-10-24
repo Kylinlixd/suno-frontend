@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { appendReview, cancelOrder, confirmReceipt, createReview, getOrderSummary, getOrders, orderStatusLabel, payOrder, queryOrderTrack, type Order, type OrderFilters, type OrderStatus } from "@suno/shared";
+import { appendReview, applyRefund, cancelOrder, confirmReceipt, createReview, getOrderSummary, getOrders, orderStatusLabel, payOrder, queryOrderTrack, type Order, type OrderFilters, type OrderStatus } from "@suno/shared";
 import { LoginPanel } from "../components/LoginPanel";
 import { sessionApiOptions, useAuth } from "../lib/auth";
 
@@ -19,6 +19,8 @@ const STATUS_TABS: Array<{ value: "ALL" | OrderStatus; label: string; filters: O
 export function OrdersPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [tracking, setTracking] = useState<Record<string, unknown> | null>(null);
+  const [refundTarget, setRefundTarget] = useState<Order | null>(null);
+  const [refundReason, setRefundReason] = useState("");
   const [reviewTarget, setReviewTarget] = useState<Order | null>(null);
   const [actionError, setActionError] = useState("");
   const [tab, setTab] = useState<(typeof STATUS_TABS)[number]["value"]>("ALL");
@@ -34,6 +36,7 @@ export function OrdersPage() {
   const cancelMutation = useMutation({ mutationFn: (orderNo: string) => cancelOrder(orderNo, session?.userId, sessionApiOptions()), onSuccess: () => { setActionError(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "取消订单失败，请稍后重试。") });
   const payMutation = useMutation({ mutationFn: (orderNo: string) => payOrder(orderNo, sessionApiOptions()), onSuccess: () => { setActionError(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "支付失败，请稍后重试。") });
   const trackMutation = useMutation({ mutationFn: (orderNo: string) => queryOrderTrack(orderNo, session?.userId, sessionApiOptions()), onSuccess: (data) => { setActionError(""); setTracking(data); }, onError: (error) => setActionError(error instanceof Error ? error.message : "物流信息获取失败，请稍后重试。") });
+  const refundMutation = useMutation({ mutationFn: () => applyRefund(refundTarget?.orderNo ?? "", refundReason, sessionApiOptions()), onSuccess: () => { setActionError(""); setRefundTarget(null); setRefundReason(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "售后申请失败，请稍后重试。") });
   const orders = ordersQuery.data?.content ?? [];
   const totalPages = Math.max(1, ordersQuery.data?.totalPages ?? 1);
 
@@ -43,18 +46,19 @@ export function OrdersPage() {
       <div className="orders-summary"><div><span>进行中的订单</span><strong>{(ordersQuery.data?.content ?? []).filter((order) => !["RECEIVED", "CANCELLED"].includes(order.status)).length}</strong></div><div><span>已完成的流转</span><strong>{summaryQuery.data?.completedOrders ?? (ordersQuery.data?.content ?? []).filter((order) => order.status === "RECEIVED").length}</strong></div><div><span>累计消费</span><strong>{summaryQuery.isLoading ? "—" : `¥${(summaryQuery.data?.totalAmount ?? 0).toLocaleString()}`}</strong></div></div>
       <div className="filter-row orders-toolbar">{STATUS_TABS.map((item) => <button key={item.value} className={`filter-button ${tab === item.value ? "active" : ""}`} onClick={() => { setTab(item.value); setPage(0); }}>{item.label}</button>)}</div>
       {actionError && <p className="error-message">{actionError}</p>}
-      {ordersQuery.isLoading ? <div className="loading-state">正在同步你的订单…</div> : ordersQuery.isError ? <div className="empty-state"><p>订单暂时无法加载，请检查网络后重试。</p><button className="button button-dark" onClick={() => void ordersQuery.refetch()}>重新加载 ↗</button></div> : orders.length === 0 ? <div className="empty-state"><p>这个状态下暂时没有订单。</p></div> : <div className="order-list">{orders.map((order) => <OrderCard key={order.orderNo} order={order} onTrack={() => trackMutation.mutate(order.orderNo)} onCancel={() => cancelMutation.mutate(order.orderNo)} onConfirm={() => receiptMutation.mutate(order.orderNo)} onPay={() => payMutation.mutate(order.orderNo)} onReview={() => setReviewTarget(order)} busy={trackMutation.isPending || cancelMutation.isPending || receiptMutation.isPending || payMutation.isPending} />)}</div>}
+      {ordersQuery.isLoading ? <div className="loading-state">正在同步你的订单…</div> : ordersQuery.isError ? <div className="empty-state"><p>订单暂时无法加载，请检查网络后重试。</p><button className="button button-dark" onClick={() => void ordersQuery.refetch()}>重新加载 ↗</button></div> : orders.length === 0 ? <div className="empty-state"><p>这个状态下暂时没有订单。</p></div> : <div className="order-list">{orders.map((order) => <OrderCard key={order.orderNo} order={order} onTrack={() => trackMutation.mutate(order.orderNo)} onCancel={() => cancelMutation.mutate(order.orderNo)} onConfirm={() => receiptMutation.mutate(order.orderNo)} onPay={() => payMutation.mutate(order.orderNo)} onReview={() => setReviewTarget(order)} onRefund={() => { setActionError(""); setRefundTarget(order); }} busy={trackMutation.isPending || cancelMutation.isPending || receiptMutation.isPending || payMutation.isPending || refundMutation.isPending} />)}</div>}
       {totalPages > 1 && <div className="pagination"><button className="text-button" disabled={page === 0} onClick={() => setPage((value) => Math.max(0, value - 1))}>← 上一页</button><span className="muted">第 {page + 1} / {totalPages} 页</span><button className="text-button" disabled={page >= totalPages - 1} onClick={() => setPage((value) => value + 1)}>下一页 →</button></div>}
       {reviewTarget && <ReviewPanel order={reviewTarget} onClose={() => setReviewTarget(null)} />}
+      {refundTarget && <RefundPanel order={refundTarget} reason={refundReason} setReason={setRefundReason} pending={refundMutation.isPending} onSubmit={() => refundMutation.mutate()} onClose={() => { setRefundTarget(null); setRefundReason(""); }} />}
       {tracking && <TrackingPanel data={tracking} onClose={() => setTracking(null)} />}
     </>}
     {showLogin && <LoginPanel onClose={() => setShowLogin(false)} />}
   </section>;
 }
 
-function OrderCard({ order, onTrack, onCancel, onConfirm, onPay, onReview, busy }: { order: Order; onTrack: () => void; onCancel: () => void; onConfirm: () => void; onPay: () => void; onReview: () => void; busy: boolean }) {
+function OrderCard({ order, onTrack, onCancel, onConfirm, onPay, onReview, onRefund, busy }: { order: Order; onTrack: () => void; onCancel: () => void; onConfirm: () => void; onPay: () => void; onReview: () => void; onRefund: () => void; busy: boolean }) {
   const status = order.status;
-  return <article className="order-card"><div className="order-head"><span>{order.orderNo}</span><strong>{order.statusText ?? orderStatusLabel[status]}</strong></div><div className="order-body"><img src={order.listing.image} alt="" loading="lazy" /><div><h2>{order.listing.name}</h2><p>{order.createdAt}{order.trackingNo ? ` · ${order.trackingNo}` : ""}</p></div><b>¥{order.amount.toLocaleString()}</b></div><div className="order-actions"><button className="text-button" onClick={onTrack} disabled={busy}>查看物流 ↗</button><span className="order-actions-main">{status === "WAIT_PAY" && <><button className="button button-lime small" onClick={onPay} disabled={busy}>去支付</button><button className="button button-light small" onClick={onCancel} disabled={busy}>取消订单</button></>}{status === "SHIPPED" && <button className="button button-lime small" onClick={onConfirm} disabled={busy}>确认收货</button>}{status === "RECEIVED" && <button className="text-button" onClick={onReview} disabled={busy}>写评价 ↗</button>}</span></div></article>;
+  return <article className="order-card"><div className="order-head"><span>{order.orderNo}</span><strong>{order.statusText ?? orderStatusLabel[status]}</strong></div><div className="order-body"><img src={order.listing.image} alt="" loading="lazy" /><div><h2>{order.listing.name}</h2><p>{order.createdAt}{order.trackingNo ? ` · ${order.trackingNo}` : ""}</p></div><b>¥{order.amount.toLocaleString()}</b></div><div className="order-actions"><button className="text-button" onClick={onTrack} disabled={busy}>查看物流 ↗</button><span className="order-actions-main">{status === "WAIT_PAY" && <><button className="button button-lime small" onClick={onPay} disabled={busy}>去支付</button><button className="button button-light small" onClick={onCancel} disabled={busy}>取消订单</button></>}{status === "SHIPPED" && <button className="button button-lime small" onClick={onConfirm} disabled={busy}>确认收货</button>}{(status === "PAID" || status === "SHIPPED") && <button className="text-button" onClick={onRefund} disabled={busy}>申请售后</button>}{status === "RECEIVED" && <button className="text-button" onClick={onReview} disabled={busy}>写评价 ↗</button>}</span></div></article>;
 }
 
 function ReviewPanel({ order, onClose }: { order: Order; onClose: () => void }) {
@@ -79,4 +83,17 @@ function TrackingPanel({ data, onClose }: { data: Record<string, unknown>; onClo
   const rawEvents = Array.isArray(data.timeline) ? data.timeline : Array.isArray(data.events) ? data.events : [];
   const events = rawEvents as Array<Record<string, unknown>>;
   return <div className="tracking-panel"><div className="tracking-head"><div><p className="eyebrow">Logistics</p><h2>物流正在路上。</h2></div><button className="text-button" onClick={onClose}>关闭</button></div><p className="tracking-status">{String(data.orderNo ?? "")} · {events.length ? `${events.length} 条轨迹` : "暂无轨迹记录"}</p>{events.map((event, index) => <div className="tracking-event" key={`${String(event.actionType)}-${index}`}><i /><div><strong>{String(event.detail || event.actionType || "状态更新")}</strong><span>{String(event.createdAt ?? "")}</span></div></div>)}</div>;
+}
+
+function RefundPanel({ order, reason, setReason, pending, onSubmit, onClose }: { order: Order; reason: string; setReason: (value: string) => void; pending: boolean; onSubmit: () => void; onClose: () => void }) {
+  return <div className="review-modal-overlay" role="dialog" aria-modal="true" aria-label="申请售后">
+    <div className="review-modal">
+      <div className="review-modal-head"><div><p className="eyebrow">Refund</p><h2>为 {order.listing.name} 申请售后。</h2></div><button className="text-button" onClick={onClose}>关闭</button></div>
+      <p className="muted">订单 {order.orderNo} · 实付 ¥{order.amount.toLocaleString()}。提交后客服会尽快处理，处理前可撤销。</p>
+      <div className="review-form">
+        <label>售后原因<textarea value={reason} onChange={(event) => setReason(event.target.value)} rows={4} placeholder="请描述遇到的问题（至少 5 个字），如商品与描述不符、物流破损……" /></label>
+        <button className="button button-dark" disabled={pending || reason.trim().length < 5} onClick={onSubmit}>{pending ? "正在提交…" : "提交售后申请 ↗"}</button>
+      </div>
+    </div>
+  </div>;
 }
