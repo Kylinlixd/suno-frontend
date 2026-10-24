@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Button, Image, Navigator, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { addToCart, createResaleOrder, getCart, removeFromCart, type CartEntry } from "@suno/shared";
+import { createResaleOrder, getCart, removeFromCart, type CartEntry } from "@suno/shared";
 import { apiOptions, sessionApiOptions, sessionClient } from "../../lib/auth";
 
 /** M2/P1 小程序购物车：逐件结算（二手单件模型） */

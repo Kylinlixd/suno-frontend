@@ -214,7 +214,7 @@ export function payOrder(orderNo: string, options?: ApiOptions): Promise<Record<
   return request<Record<string, unknown>>("/api/mall/orders/pay", { method: "POST", body: JSON.stringify({ orderNo, idempotencyKey, timestamp, nonce, signature }) }, options);
 }
 
-export function createReview(body: { orderNo: string; buyerUserId: number | undefined; rating: number; content: string }, options?: ApiOptions) {
+export function createReview(body: { orderNo: string; buyerUserId: number | undefined; rating: number; content: string; imageUrls?: string[] }, options?: ApiOptions) {
   if (!options?.demo && !Number.isInteger(body.buyerUserId)) return Promise.reject(new ApiError("请先登录", 401, "AUTH_REQUIRED"));
   if (body.rating < 1 || body.rating > 5 || !body.content.trim()) return Promise.reject(new ApiError("评分和评价内容不能为空", 400, "REVIEW_PAYLOAD_INVALID"));
   return request<Record<string, unknown>>("/api/mall/reviews/create", { method: "POST", body: JSON.stringify(body) }, options);
@@ -467,6 +467,15 @@ export async function adminPageAuditLogs(page = 0, size = 20, options?: ApiOptio
 export async function adminPageRefunds(status?: string, page = 0, size = 20, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
   const query = status ? `?status=${status}&page=${page}&size=${size}` : `?page=${page}&size=${size}`;
   return normalizePage(await request<unknown>(`/api/admin/recycle/refunds${query}`, {}, options), size);
+}
+
+export function adminRunReconciliation(options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/admin/payment/reconcile/run", { method: "POST" }, options);
+}
+
+export function adminExportRefundsCsv(status?: string, options?: ApiOptions): Promise<string> {
+  const query = status ? `?status=${status}` : "";
+  return requestText(`/api/admin/recycle/refunds/export${query}`, {}, options);
 }
 
 export function adminProcessRefund(refundId: number, options?: ApiOptions) {

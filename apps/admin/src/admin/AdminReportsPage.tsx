@@ -1,10 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
-import { adminReportOverview } from "@suno/shared";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { adminReportOverview, adminRunReconciliation } from "@suno/shared";
 import { apiOptions } from "../lib/auth";
 
 /** M3 经营报表 */
 export function AdminReportsPage() {
   const reportQuery = useQuery({ queryKey: ["admin-report"], queryFn: () => adminReportOverview(14, apiOptions) });
+  const reconcileMutation = useMutation({
+    mutationFn: () => adminRunReconciliation(apiOptions),
+    onSuccess: (data) => window.alert(`对账完成：检查 ${String(data.checked)} 单，差异 ${String(data.mismatched)} 单（差异已写审计）。`)
+  });
   const data = reportQuery.data ?? {};
   const trend = Array.isArray(data.trend) ? data.trend as Array<Record<string, unknown>> : [];
   const maxOrders = Math.max(1, ...trend.map((point) => Number(point.orders)));
@@ -22,7 +26,7 @@ export function AdminReportsPage() {
       {cards.map(([label, value]) => <div className="report-card" key={label}><span>{label}</span><strong>{value}</strong></div>)}
     </div>
     <div className="admin-panel">
-      <div className="panel-heading"><h2>近 {String(data.trendDays ?? 14)} 日订单趋势</h2></div>
+      <div className="panel-heading"><h2>近 {String(data.trendDays ?? 14)} 日订单趋势</h2><button className="text-button" disabled={reconcileMutation.isPending} onClick={() => reconcileMutation.mutate()}>{reconcileMutation.isPending ? "对账中…" : "立即支付对账"}</button></div>
       <div className="report-trend">
         {trend.map((point) => <div className="trend-bar" key={String(point.date)} title={`${String(point.date)}：${Number(point.orders)} 单 / 支付 ${Number(point.paidOrders)}`}>
           <i style={{ height: `${Math.max(6, (Number(point.orders) / maxOrders) * 100)}%` }} />

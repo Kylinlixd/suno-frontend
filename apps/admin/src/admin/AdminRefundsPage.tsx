@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminPageRefunds, adminProcessRefund } from "@suno/shared";
+import { adminExportRefundsCsv, adminPageRefunds, adminProcessRefund } from "@suno/shared";
 import { apiOptions } from "../lib/auth";
 
 const STATUS_TABS = ["", "PENDING", "PROCESSED", "CANCELLED"];
@@ -12,6 +12,17 @@ export function AdminRefundsPage() {
   const [page, setPage] = useState(0);
   const [message, setMessage] = useState("");
   const refundsQuery = useQuery({ queryKey: ["admin-refunds", status, page], queryFn: () => adminPageRefunds(status || undefined, page, 20, apiOptions) });
+  async function exportCsv() {
+    try {
+      const csv = await adminExportRefundsCsv(status || undefined, apiOptions);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "refunds.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch { window.alert("导出失败，请稍后重试。"); }
+  }
   const processMutation = useMutation({
     mutationFn: (refundId: number) => adminProcessRefund(refundId, apiOptions),
     onSuccess: (data) => { setMessage(`售后已处置（${String(data.mode)}）。`); void queryClient.invalidateQueries({ queryKey: ["admin-refunds"] }); },
@@ -22,7 +33,7 @@ export function AdminRefundsPage() {
   return <div className="admin-page">
     <div className="admin-topbar"><div><p className="eyebrow">Refunds</p><h1>售后管理</h1></div></div>
     <div className="admin-panel">
-      <div className="panel-heading"><h2>售后申请</h2><span className="admin-live"><i />{refundsQuery.data?.totalElements ?? 0} 单</span></div>
+      <div className="panel-heading"><h2>售后申请</h2><span className="admin-live"><i />{refundsQuery.data?.totalElements ?? 0} 单</span><button className="text-button" onClick={() => void exportCsv()}>导出 CSV</button></div>
       <div className="filter-row">{STATUS_TABS.map((tab) => <button key={tab} className={`filter-button ${status === tab ? "active" : ""}`} onClick={() => { setStatus(tab); setPage(0); }}>{tab || "全部状态"}</button>)}</div>
       {message && <p className="success-message">{message}</p>}
       <div className="table-head admin-table-row"><span>售后单</span><span>订单</span><span>金额</span><span>状态</span><span>操作</span></div>
