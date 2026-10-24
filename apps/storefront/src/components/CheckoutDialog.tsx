@@ -16,6 +16,7 @@ export function CheckoutDialog({ listingId, listingName, price, onClose }: {
   const { session } = useAuth();
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
   const [selectedCouponUserId, setSelectedCouponUserId] = useState<number | null>(null);
+  const [usePoints, setUsePoints] = useState(false);
   const [error, setError] = useState("");
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressForm, setAddressForm] = useState({ receiverName: "", receiverPhone: "", province: "", city: "", district: "", detailAddress: "" });
@@ -40,11 +41,13 @@ export function CheckoutDialog({ listingId, listingName, price, onClose }: {
   const selectedCoupon = usableCoupons.find((coupon) => coupon.couponUserId === selectedCouponUserId);
   const discount = selectedCoupon ? Math.min(selectedCoupon.discountValue, price) : 0;
   const payable = Math.max(price - discount, 0);
+  const pointsHint = usePoints ? "结算按服务端规则抵扣（100 积分 = ¥1，最多抵应付的 20%）" : undefined;
 
   const orderMutation = useMutation({
     mutationFn: () => createResaleOrder(listingId, session?.userId, sessionApiOptions(), {
       addressId: effectiveAddressId ?? undefined,
-      couponUserId: selectedCouponUserId ?? undefined
+      couponUserId: selectedCouponUserId ?? undefined,
+      usePoints
     }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["cart"] });
@@ -121,10 +124,18 @@ export function CheckoutDialog({ listingId, listingName, price, onClose }: {
         </div>}
       </div>
 
+      <div className="checkout-section">
+        <h3>积分抵扣</h3>
+        <label className="coupon-option" style={{ cursor: "pointer" }}>
+          <input type="checkbox" checked={usePoints} onChange={(event) => setUsePoints(event.target.checked)} />
+          <span>使用循环积分抵现<i>{pointsHint ?? "勾选后按积分余额自动抵扣"}</i></span>
+        </label>
+      </div>
       <div className="checkout-summary">
         <div><span>商品金额</span><strong>¥{price.toLocaleString()}</strong></div>
         {discount > 0 && <div><span>券抵扣</span><strong>-¥{discount.toLocaleString()}</strong></div>}
-        <div className="payable"><span>应付</span><strong>¥{payable.toLocaleString()}</strong></div>
+        {usePoints && <div><span>积分抵扣</span><strong>以服务端计算为准</strong></div>}
+        <div className="payable"><span>应付（积分抵扣前）</span><strong>¥{payable.toLocaleString()}</strong></div>
       </div>
       {error && <p className="login-error">{error}</p>}
       <button className="button button-lime" onClick={submit} disabled={orderMutation.isPending}>

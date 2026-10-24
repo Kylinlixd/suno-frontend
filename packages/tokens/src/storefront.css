@@ -363,3 +363,7 @@
 .refund-side { display: grid; justify-items: end; gap: .3rem; }
 .account-addresses, .account-coupons, .account-refunds { margin-top: 2.2rem; }
 .button.button-light.small, .button.button-dark.small { font-size: .74rem; padding: .45rem .8rem; }
+
+.recycle-upload { display: grid; gap: .4rem; }
+.recycle-upload input[type="file"] { font-size: .78rem; }
+.audit-detail { word-break: break-all; color: #70756c; font-size: .74rem; }

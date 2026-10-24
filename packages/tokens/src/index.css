@@ -6,3 +6,17 @@
   --suno-line: rgba(21, 23, 20, 0.14);
   --suno-radius: 1.25rem;
 }
+
+/* ==================== P1 小程序购物车/通知 ==================== */
+.mini-cart-row { display: flex; gap: .8rem; padding: .9rem 0; border-bottom: 1px solid rgba(21,23,20,.08); }
+.mini-cart-image { width: 96rpx; height: 96rpx; border-radius: .6rem; flex-shrink: 0; }
+.mini-cart-info { display: flex; flex-direction: column; gap: .25rem; flex: 1; }
+.mini-cart-title { font-size: .85rem; font-weight: 700; }
+.mini-cart-meta { font-size: .7rem; color: #898e84; }
+.mini-cart-actions { display: flex; gap: .5rem; margin-top: .3rem; }
+.mini-notification { display: flex; flex-direction: column; gap: .25rem; padding: .8rem 0; border-bottom: 1px solid rgba(21,23,20,.08); }
+.mini-notification.read { opacity: .55; }
+.mini-notification-title { font-size: .85rem; font-weight: 700; }
+.mini-notification-content { font-size: .75rem; color: #70756c; }
+.mini-notification-meta { font-size: .65rem; color: #b3b7ae; }
+.mini-link { font-size: .72rem; color: #6f8f3e; margin: .4rem 0; }

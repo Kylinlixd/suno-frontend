@@ -1,4 +1,4 @@
-import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminReport, demoAdminUsers, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycles, demoRefunds } from "./demo";
+import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminRefunds, demoAdminReport, demoAdminUsers, demoAuditLogs, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycles, demoRefunds } from "./demo";
 import { hmacSha256Hex } from "./paySignature";
 import { placeholderImage } from "./placeholder";
 import type { Address, AddressPayload, AdminMetrics, ApiOptions, ApiResponse, CartEntry, Category, CouponSummary, Listing, ListingFilters, NotificationItem, Order, OrderFilters, OrderSummary, Page, PaymentReplaySummary, PointsLedger, RecycleApplication, RefundRecord, Review, ReviewRiskListing, ReviewRiskSummary, ReviewSummary, SessionList } from "./types";
@@ -251,13 +251,14 @@ export interface CheckoutPayload {
 }
 
 /** M2 结算下单：可选携带收货地址与满减券；响应含 discountAmount/payableAmount */
-export function createResaleOrder(listingId: string, userId: number | undefined, options?: ApiOptions, extras?: { addressId?: number; couponUserId?: number }) {
+export function createResaleOrder(listingId: string, userId: number | undefined, options?: ApiOptions, extras?: { addressId?: number; couponUserId?: number; usePoints?: boolean }) {
   if (!options?.demo && !Number.isInteger(userId)) return Promise.reject(new ApiError("请先登录", 401, "AUTH_REQUIRED"));
   const parsedListingId = Number(listingId);
   if (!options?.demo && !Number.isInteger(parsedListingId)) return Promise.reject(new ApiError("商品编号无效", 400, "LISTING_ID_INVALID"));
   const body: Record<string, unknown> = { listingId: options?.demo ? listingId : parsedListingId };
   if (extras?.addressId != null) body.addressId = extras.addressId;
   if (extras?.couponUserId != null) body.couponUserId = extras.couponUserId;
+  if (extras?.usePoints) body.usePoints = true;
   return request<Record<string, unknown>>("/api/mall/orders", { method: "POST", body: JSON.stringify(body) }, options);
 }
 
@@ -447,8 +448,8 @@ export async function adminListCoupons(status?: string, options?: ApiOptions): P
   return Array.isArray(data) ? data as Array<Record<string, unknown>> : [];
 }
 
-export function adminCreateCoupon(payload: { name: string; minOrderAmount: number; discountValue: number; totalCount: number; perUserLimit: number; effectiveDays: number }, options?: ApiOptions) {
-  return request<Record<string, unknown>>("/api/admin/coupons", { method: "POST", body: JSON.stringify(payload) }, options);
+export function adminCreateCoupon(payload: { name: string; couponType?: "FIXED" | "PERCENT"; minOrderAmount: number; discountValue: number; totalCount: number; perUserLimit: number; effectiveDays: number }, options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/admin/coupons", { method: "POST", body: JSON.stringify({ couponType: "FIXED", ...payload }) }, options);
 }
 
 export function adminDisableCoupon(couponId: number, options?: ApiOptions) {
@@ -457,6 +458,60 @@ export function adminDisableCoupon(couponId: number, options?: ApiOptions) {
 
 export function adminReportOverview(trendDays = 14, options?: ApiOptions) {
   return request<Record<string, unknown>>(`/api/admin/reports/overview?trendDays=${trendDays}`, {}, options);
+}
+
+export async function adminPageAuditLogs(page = 0, size = 20, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
+  return normalizePage(await request<unknown>(`/api/admin/recycle/audit-logs/page?page=${page}&size=${size}`, {}, options), size);
+}
+
+export async function adminPageRefunds(status?: string, page = 0, size = 20, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
+  const query = status ? `?status=${status}&page=${page}&size=${size}` : `?page=${page}&size=${size}`;
+  return normalizePage(await request<unknown>(`/api/admin/recycle/refunds${query}`, {}, options), size);
+}
+
+export function adminProcessRefund(refundId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/recycle/refunds/${encodeURIComponent(refundId)}/process`, { method: "POST" }, options);
+}
+
+export function adminAttachListingImage(listingId: number, imageUrl: string, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/recycle/listings/${encodeURIComponent(listingId)}/images`, { method: "POST", body: JSON.stringify({ imageUrl }) }, options);
+}
+
+/** P1 图片上传：multipart，返回 { url } */
+export async function uploadImage(file: File | Blob, filename: string, options?: ApiOptions): Promise<string> {
+  if (options?.demo) {
+    return `/files/demo-${Date.now()}.png`;
+  }
+  const form = new FormData();
+  form.append("file", file, filename);
+  const fetcher = options?.fetcher ?? fetch;
+  const response = await withUpload(fetcher, form, options);
+  const payload = await response.json() as ApiResponse<{ url: string }>;
+  if (!response.ok || payload.success !== true) {
+    throw new ApiError(payload?.message || "上传失败", response.status, payload?.errorCode ?? undefined);
+  }
+  return payload.data?.url ?? "";
+}
+
+async function withUpload(fetcher: NonNullable<ApiOptions["fetcher"]>, form: FormData, options?: ApiOptions): Promise<Response> {
+  const current = (options as { requester?: <T>(path: string, init?: RequestInit) => Promise<T> } | undefined)?.requester as unknown as ((path: string, init?: RequestInit) => Promise<Response>) | undefined;
+  const headers: Record<string, string> = {};
+  if (current) {
+    // 会话路径：经 requester 走 401 刷新；multipart 不设 Content-Type（浏览器自动边界）
+    const raw = await current("/api/uploads", { method: "POST", body: form });
+    return raw as unknown as Response;
+  }
+  if (options?.token) headers.Authorization = `Bearer ${options.token}`;
+  return fetcher(`${options?.baseUrl ?? "http://localhost:8080"}/api/uploads`, { method: "POST", headers, body: form });
+}
+
+/** P1 短信验证码 */
+export function sendSmsCode(phone: string, options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/auth/sms/send", { method: "POST", body: JSON.stringify({ phone }) }, options);
+}
+
+export function smsLogin(phone: string, code: string, options?: ApiOptions) {
+  return request<Record<string, unknown>>("/api/auth/sms/login", { method: "POST", body: JSON.stringify({ phone, code, deviceId: "suno-web" }) }, options);
 }
 
 // ==================== M2 通知 ====================
@@ -772,6 +827,8 @@ function demoResponse<T>(path: string, method: string, body?: BodyInit | null): 
   if (path.includes("/api/admin/users") && method === "GET") return demoPage(demoAdminUsers) as T;
   if (path.includes("/api/admin/coupons") && method === "GET") return demoAdminCoupons as T;
   if (path.includes("/api/admin/reports/overview") && method === "GET") return demoAdminReport as T;
+  if (path.includes("/api/admin/recycle/audit-logs/page") && method === "GET") return demoPage(demoAuditLogs) as T;
+  if (path.includes("/api/admin/recycle/refunds") && method === "GET") return demoPage(demoAdminRefunds) as T;
   // 注意顺序：/recycle/orders/my 必须先于通用 /orders 判定
   if (path.includes("/recycle/orders") && method === "GET") return demoPage(demoRecycles) as T;
   if (path.includes("/orders") && method === "GET") return demoPage(demoOrders) as T;

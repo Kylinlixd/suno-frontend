@@ -131,3 +131,15 @@ export const demoAdminReport = {
   gmv: 26299, refundedAmount: 0, recycleCount: 31, trendDays: 14,
   trend: Array.from({ length: 14 }, (_, index) => ({ date: `2026-10-${index + 10}`, orders: (index * 7) % 5, paidOrders: (index * 3) % 4 }))
 };
+
+/** P1 演示：审计日志与管理端售后 */
+export const demoAuditLogs: Array<Record<string, unknown>> = [
+  { id: 1, actionType: "RESALE_ORDER_PAY", targetType: "RESALE_ORDER", targetId: "B2C-DEMO0001", detail: "payStatus=PAID", createdAt: "2026-08-05 10:20" },
+  { id: 2, actionType: "RESALE_ORDER_DELIVER", targetType: "RESALE_ORDER", targetId: "B2C-DEMO0001", detail: "fulfillStatus=DELIVERED", createdAt: "2026-08-05 15:40" },
+  { id: 3, actionType: "RESALE_LISTING_PRICE", targetType: "RESALE_LISTING", targetId: "7", detail: "from=2499,to=2299", createdAt: "2026-08-06 09:10" }
+];
+
+export const demoAdminRefunds: Array<Record<string, unknown>> = [
+  { refundId: 41, refundNo: "RFD-DEMO0001", orderNo: "B2C-DEMO0002", amount: 100, reason: "外包装轻微破损协商补偿", status: "PENDING", buyerUserId: 1001, payChannel: "ALIPAY", createdAt: "2026-08-06 11:00" },
+  { refundId: 31, refundNo: "RFD-DEMO0002", orderNo: "B2C-DEMO0003", amount: 499, reason: "商品与描述不符", status: "PROCESSED", buyerUserId: 1002, payChannel: "MOCK", createdAt: "2026-08-04 09:12", processedAt: "2026-08-04 18:30" }
+];
