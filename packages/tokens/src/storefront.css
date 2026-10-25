@@ -367,3 +367,19 @@
 .recycle-upload { display: grid; gap: .4rem; }
 .recycle-upload input[type="file"] { font-size: .78rem; }
 .audit-detail { word-break: break-all; color: #70756c; font-size: .74rem; }
+
+/* ==================== P2 客服工单 ==================== */
+.support-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; align-items: start; }
+.support-form { background: white; border: 1px solid var(--suno-line); border-radius: 1.2rem; padding: 1.6rem; display: grid; gap: 1rem; }
+.support-form .filter-row { margin: 0; padding: 0; border: 0; }
+.support-form label { display: grid; gap: .45rem; color: #777c73; font-size: .72rem; font-weight: 700; }
+.support-form textarea, .support-form input { border: 1px solid var(--suno-line); border-radius: .65rem; padding: .7rem .8rem; font-size: .85rem; width: 100%; }
+.support-list { display: grid; gap: .8rem; }
+.support-row { background: white; border: 1px solid var(--suno-line); border-radius: .9rem; padding: .9rem 1rem; display: grid; gap: .4rem; }
+.support-row.closed { opacity: .6; }
+.support-row-head { display: flex; align-items: center; gap: .6rem; }
+.support-row-head i { color: #989c93; font-style: normal; font-size: .68rem; margin-left: auto; }
+.support-content { margin: 0; font-size: .84rem; }
+.support-reply { margin: 0; background: #f6f5f0; border-radius: .6rem; padding: .5rem .7rem; font-size: .8rem; }
+.muted.small { font-size: .68rem; }
+@media (max-width: 900px) { .support-layout { grid-template-columns: 1fr; } }

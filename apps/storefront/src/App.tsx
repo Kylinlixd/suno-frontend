@@ -9,6 +9,7 @@ import { OrdersPage } from "./pages/OrdersPage";
 import { AccountPage } from "./pages/AccountPage";
 import { CartPage } from "./pages/CartPage";
 import { NotificationsPage } from "./pages/NotificationsPage";
+import { SupportPage } from "./pages/SupportPage";
 export default function App() {
   return <div className="app-shell"><CustomerShell /></div>;
 }
@@ -25,6 +26,7 @@ function CustomerShell() {
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/support" element={<SupportPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

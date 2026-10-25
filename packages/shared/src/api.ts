@@ -1,4 +1,4 @@
-import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminRefunds, demoAdminReport, demoAdminUsers, demoAuditLogs, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycles, demoRefunds } from "./demo";
+import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminRefunds, demoAdminReport, demoAdminUsers, demoAuditLogs, demoSupportTickets, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycles, demoRefunds } from "./demo";
 import { hmacSha256Hex } from "./paySignature";
 import { placeholderImage } from "./placeholder";
 import type { Address, AddressPayload, AdminMetrics, ApiOptions, ApiResponse, CartEntry, Category, CouponSummary, Listing, ListingFilters, NotificationItem, Order, OrderFilters, OrderSummary, Page, PaymentReplaySummary, PointsLedger, RecycleApplication, RefundRecord, Review, ReviewRiskListing, ReviewRiskSummary, ReviewSummary, SessionList } from "./types";
@@ -514,6 +514,57 @@ async function withUpload(fetcher: NonNullable<ApiOptions["fetcher"]>, form: For
   return fetcher(`${options?.baseUrl ?? "http://localhost:8080"}/api/uploads`, { method: "POST", headers, body: form });
 }
 
+// ==================== P2 客服工单 ====================
+
+export interface SupportTicket {
+  ticketId: number;
+  ticketNo: string;
+  orderNo?: string;
+  ticketType: string;
+  content: string;
+  status: "OPEN" | "PROCESSING" | "CLOSED" | string;
+  reply?: string;
+  repliedAt?: string;
+  createdAt: string;
+}
+
+export function createSupportTicket(payload: { ticketType: string; content: string; orderNo?: string }, options?: ApiOptions) {
+  if (!options?.demo && payload.content.trim().length < 5) return Promise.reject(new ApiError("请描述你遇到的问题（至少 5 个字）", 400, "PARAM_INVALID"));
+  return request<Record<string, unknown>>("/api/support/tickets", { method: "POST", body: JSON.stringify(payload) }, options);
+}
+
+export async function getMySupportTickets(page = 0, size = 20, options?: ApiOptions): Promise<Page<SupportTicket>> {
+  const data = await request<unknown>(`/api/support/tickets/my?page=${page}&size=${size}`, {}, options);
+  const pageData = normalizePage(data, size);
+  return { ...pageData, content: pageData.content.map(toSupportTicket) };
+}
+
+export async function adminPageSupportTickets(status?: string, page = 0, size = 20, options?: ApiOptions): Promise<Page<SupportTicket>> {
+  const query = status ? `status=${status}&page=${page}&size=${size}` : `page=${page}&size=${size}`;
+  const data = await request<unknown>(`/api/admin/support/tickets?${query}`, {}, options);
+  const pageData = normalizePage(data, size);
+  return { ...pageData, content: pageData.content.map(toSupportTicket) };
+}
+
+export function adminReplySupportTicket(ticketId: number, reply: string, closeTicket: boolean, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/admin/support/tickets/${encodeURIComponent(ticketId)}/reply`, { method: "POST", body: JSON.stringify({ reply, closeTicket }) }, options);
+}
+
+function toSupportTicket(value: unknown): SupportTicket {
+  const item = value as Record<string, unknown>;
+  return {
+    ticketId: numberValue(item.ticketId),
+    ticketNo: String(item.ticketNo ?? ""),
+    orderNo: item.orderNo ? String(item.orderNo) : undefined,
+    ticketType: String(item.ticketType ?? "OTHER"),
+    content: String(item.content ?? ""),
+    status: String(item.status ?? "OPEN"),
+    reply: item.reply ? String(item.reply) : undefined,
+    repliedAt: item.repliedAt ? String(item.repliedAt) : undefined,
+    createdAt: String(item.createdAt ?? "")
+  };
+}
+
 /** P1 短信验证码 */
 export function sendSmsCode(phone: string, options?: ApiOptions) {
   return request<Record<string, unknown>>("/api/auth/sms/send", { method: "POST", body: JSON.stringify({ phone }) }, options);
@@ -838,6 +889,8 @@ function demoResponse<T>(path: string, method: string, body?: BodyInit | null): 
   if (path.includes("/api/admin/reports/overview") && method === "GET") return demoAdminReport as T;
   if (path.includes("/api/admin/recycle/audit-logs/page") && method === "GET") return demoPage(demoAuditLogs) as T;
   if (path.includes("/api/admin/recycle/refunds") && method === "GET") return demoPage(demoAdminRefunds) as T;
+  if (path.includes("/api/admin/support/tickets") && method === "GET") return demoPage(demoSupportTickets) as T;
+  if (path.includes("/api/support/tickets/my") && method === "GET") return demoPage(demoSupportTickets.filter((ticket) => ticket.userId === 1)) as T;
   // 注意顺序：/recycle/orders/my 必须先于通用 /orders 判定
   if (path.includes("/recycle/orders") && method === "GET") return demoPage(demoRecycles) as T;
   if (path.includes("/orders") && method === "GET") return demoPage(demoOrders) as T;

@@ -19,7 +19,7 @@ export function SunoNav() {
     <nav className="desktop-nav" aria-label="主导航">
       <NavLink to="/market">逛逛</NavLink>
       <NavLink to="/recycle">把闲置交给我们</NavLink>
-      <NavLink to="/orders">订单</NavLink>
+      <NavLink to="/orders">订单</NavLink><NavLink to="/support">客服</NavLink>
       <NavLink to="/cart">购物车</NavLink>
     </nav>
     <div className="nav-tools">

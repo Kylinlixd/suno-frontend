@@ -143,3 +143,9 @@ export const demoAdminRefunds: Array<Record<string, unknown>> = [
   { refundId: 41, refundNo: "RFD-DEMO0001", orderNo: "B2C-DEMO0002", amount: 100, reason: "外包装轻微破损协商补偿", status: "PENDING", buyerUserId: 1001, payChannel: "ALIPAY", createdAt: "2026-08-06 11:00" },
   { refundId: 31, refundNo: "RFD-DEMO0002", orderNo: "B2C-DEMO0003", amount: 499, reason: "商品与描述不符", status: "PROCESSED", buyerUserId: 1002, payChannel: "MOCK", createdAt: "2026-08-04 09:12", processedAt: "2026-08-04 18:30" }
 ];
+
+/** P2 演示工单 */
+export const demoSupportTickets: Array<Record<string, unknown>> = [
+  { ticketId: 1, ticketNo: "TCK-DEMO0001", userId: 1, orderNo: "SN202608050018", ticketType: "QUESTION", content: "收货时间可以指定时间段吗？", status: "PROCESSING", reply: "可以备注期望时段，发货时优先安排。", repliedAt: "2026-08-06 10:30", createdAt: "2026-08-05 20:12" },
+  { ticketId: 2, ticketNo: "TCK-DEMO0002", userId: 2, orderNo: undefined, ticketType: "AFTER_SALE", content: "上一单的包装能否加固一些？", status: "OPEN", createdAt: "2026-08-06 09:00" }
+];
