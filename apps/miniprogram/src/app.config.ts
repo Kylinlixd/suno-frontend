@@ -1,5 +1,5 @@
 export default defineAppConfig({
-  pages: ["pages/home/index", "pages/market/index", "pages/product/index", "pages/recycle/index", "pages/orders/index", "pages/account/index", "pages/cart/index", "pages/notifications/index", "pages/support/index"],
+  pages: ["pages/home/index", "pages/market/index", "pages/product/index", "pages/recycle/index", "pages/orders/index", "pages/account/index", "pages/cart/index", "pages/notifications/index", "pages/support/index", "pages/checkout/index", "pages/addresses/index", "pages/coupons/index"],
   window: { navigationBarBackgroundColor: "#f4f2eb", navigationBarTextStyle: "black", backgroundColor: "#f4f2eb" },
   tabBar: {
     color: "#969990",

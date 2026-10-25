@@ -714,7 +714,10 @@ function toListing(value: unknown): Listing {
     image: String(item.image ?? placeholderImage(`suno-listing-${id}`)),
     stock: Number(item.stock ?? 0),
     favorite: Boolean(item.favorite),
-    story: String(item.story ?? "经过审核、估价与整理，等待下一次被认真使用。")
+    story: String(item.story ?? "经过审核、估价与整理，等待下一次被认真使用。"),
+    images: Array.isArray(item.images) && item.images.length > 0
+      ? item.images.map(String)
+      : [String(item.image ?? placeholderImage(`suno-listing-${id}`))]
   };
 }
 

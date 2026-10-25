@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import { Button, Image, Navigator, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { createResaleOrder, getCart, removeFromCart, type CartEntry } from "@suno/shared";
+import { getCart, removeFromCart, type CartEntry } from "@suno/shared";
 import { apiOptions, sessionApiOptions, sessionClient } from "../../lib/auth";
 
 /** M2/P1 小程序购物车：逐件结算（二手单件模型） */
@@ -38,13 +38,7 @@ export default function Cart() {
   async function checkout(entry: CartEntry) {
     if (!requireSession()) return;
     if (!entry.orderable) { Taro.showToast({ title: "已下架或售罄", icon: "none" }); return; }
-    try {
-      await createResaleOrder(String(entry.listingId), sessionClient.read()?.userId, sessionApiOptions());
-      Taro.showToast({ title: "订单已创建", icon: "success" });
-      setTimeout(() => Taro.navigateTo({ url: "/pages/orders/index" }), 600);
-    } catch (error) {
-      Taro.showToast({ title: error instanceof Error ? error.message : "下单失败", icon: "none" });
-    }
+    Taro.navigateTo({ url: `/pages/checkout/index?listing=${entry.listingId}` });
   }
   return <View className="mini-page">
     <Navigator url="/pages/market/index" className="mini-back">← 返回市场</Navigator>

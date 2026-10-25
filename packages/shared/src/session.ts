@@ -112,6 +112,17 @@ export function createSessionClient(options: SessionClientOptions) {
       const data = await request<AuthTokens & AuthUser>("/api/auth/login", { method: "POST", body: JSON.stringify({ username, password, deviceId }) }, options);
       return await establishSession(data);
     },
+    /** P1 短信验证码登录：无账户自动注册；同样经 /api/auth/me 回填 userId */
+    async loginWithSms(phone: string, code: string): Promise<AuthSession> {
+      if (options.demo) {
+        const session = { accessToken: "demo-token", refreshToken: "demo-refresh", userId: 1, username: phone || "sms-user", role: options.demoRole ?? "USER", deviceId };
+        save(session);
+        return session;
+      }
+      const data = await request<AuthTokens & AuthUser>("/api/auth/sms/login", { method: "POST", body: JSON.stringify({ phone, code, deviceId }) }, options);
+      return await establishSession(data);
+    },
+
     /** M1 注册：成功即登录（后端返回令牌，但不含 userId，需经 /api/auth/me 回填） */
     async register(username: string, password: string): Promise<AuthSession> {
       if (options.demo) { const session = { accessToken: "demo-token", refreshToken: "demo-refresh", userId: 1, username: username || "Alex", role: options.demoRole ?? "USER", deviceId }; save(session); return session; }

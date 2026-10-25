@@ -1,8 +1,15 @@
 import { useEffect, useState } from "react";
 import { Button, Image, Text, View } from "@tarojs/components";
 import Taro from "@tarojs/taro";
-import { cancelOrder, confirmReceipt, getOrders, orderStatusLabel, payOrder, type Order, type OrderStatus } from "@suno/shared";
+import { applyRefund, cancelOrder, confirmReceipt, createReview, getOrders, orderStatusLabel, payOrder, type Order, type OrderStatus } from "@suno/shared";
 import { apiOptions, sessionApiOptions, sessionClient } from "../../lib/auth";
+
+/** Taro 类型未跟进微信 editable 弹窗能力，局部收窄类型 */
+async function promptText(title: string, placeholder: string): Promise<string | null> {
+  const modal = Taro.showModal as unknown as (option: Record<string, unknown>) => Promise<{ confirm: boolean; content?: string }>;
+  const result = await modal({ title, content: "", editable: true, placeholderText: placeholder });
+  return result.confirm ? (result.content ?? "") : null;
+}
 
 const STATUS_TABS: Array<{ value: "ALL" | OrderStatus; label: string; payStatus?: string; fulfillStatus?: string }> = [
   { value: "ALL", label: "全部" },
@@ -38,10 +45,32 @@ export default function Orders() {
       Taro.showToast({ title: order.status === "SHIPPED" ? "已确认收货" : "订单已取消", icon: "success" });
     } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "操作失败", icon: "none" }); }
   }
+  async function refund(order: Order) {
+    const session = sessionClient.read();
+    if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; }
+    const reason = await promptText("申请售后", "描述问题，至少 5 个字");
+    if (reason === null) return;
+    if (reason.length < 5) { Taro.showToast({ title: "原因至少 5 个字", icon: "none" }); return; }
+    try {
+      await applyRefund(order.orderNo, reason, sessionApiOptions());
+      Taro.showToast({ title: "售后已提交", icon: "success" });
+    } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "提交失败", icon: "none" }); }
+  }
+  async function review(order: Order) {
+    const session = sessionClient.read();
+    if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; }
+    const content = await promptText(`评价 ${order.listing.name}`, "成色、包装、沟通……");
+    if (content === null) return;
+    if (!content) { Taro.showToast({ title: "写点再提交吧", icon: "none" }); return; }
+    try {
+      await createReview({ orderNo: order.orderNo, buyerUserId: session?.userId, rating: 5, content }, sessionApiOptions());
+      Taro.showToast({ title: "评价已提交", icon: "success" });
+    } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "提交失败", icon: "none" }); }
+  }
   async function pay(order: Order) {
     const session = sessionClient.read();
     if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; }
     try { await payOrder(order.orderNo, sessionApiOptions()); setResolved((value) => ({ ...value, [order.orderNo]: "PAID" })); Taro.showToast({ title: "支付成功", icon: "success" }); } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "支付失败", icon: "none" }); }
   }
-  return <View className="mini-page"><Text className="mini-eyebrow">Your flow</Text><Text className="mini-page-title">每一次{`\n`}选择都算数。</Text>{message && <Text className="mini-page-copy">{message}</Text>}{authNeeded && <Button className="mini-button mini-button-lime" onClick={() => Taro.switchTab({ url: "/pages/account/index" })}>去登录 ↗</Button>}<View className="mini-filters">{STATUS_TABS.map((item) => <Text key={item.value} className={`mini-filter ${tab === item.value ? "active" : ""}`} onClick={() => setTab(item.value)}>{item.label}</Text>)}</View><View className="mini-orders">{orders.map((order) => { const status = resolved[order.orderNo] ?? order.status; return <View className="mini-order" key={order.orderNo}><View className="mini-order-head"><Text>{order.orderNo}</Text><Text className="mini-order-status">{order.statusText ?? orderStatusLabel[status]}</Text></View><View className="mini-order-body"><Image src={order.listing.image} mode="aspectFill" lazyLoad /><View><Text>{order.listing.name}</Text><Text>{order.createdAt}</Text></View><Text>¥{order.amount.toLocaleString()}</Text></View><View className="mini-order-actions">{status === "WAIT_PAY" && <Button className="mini-order-action mini-order-action-lime" onClick={() => pay(order)}>去支付</Button>}{status === "WAIT_PAY" && <Button className="mini-order-action" onClick={() => updateOrder(order)}>取消订单</Button>}{status === "SHIPPED" && <Button className="mini-order-action mini-order-action-lime" onClick={() => updateOrder(order)}>确认收货</Button>}</View></View>; })}</View></View>;
+  return <View className="mini-page"><Text className="mini-eyebrow">Your flow</Text><Text className="mini-page-title">每一次{`\n`}选择都算数。</Text>{message && <Text className="mini-page-copy">{message}</Text>}{authNeeded && <Button className="mini-button mini-button-lime" onClick={() => Taro.switchTab({ url: "/pages/account/index" })}>去登录 ↗</Button>}<View className="mini-filters">{STATUS_TABS.map((item) => <Text key={item.value} className={`mini-filter ${tab === item.value ? "active" : ""}`} onClick={() => setTab(item.value)}>{item.label}</Text>)}</View><View className="mini-orders">{orders.map((order) => { const status = resolved[order.orderNo] ?? order.status; return <View className="mini-order" key={order.orderNo}><View className="mini-order-head"><Text>{order.orderNo}</Text><Text className="mini-order-status">{order.statusText ?? orderStatusLabel[status]}</Text></View><View className="mini-order-body"><Image src={order.listing.image} mode="aspectFill" lazyLoad /><View><Text>{order.listing.name}</Text><Text>{order.createdAt}</Text></View><Text>¥{order.amount.toLocaleString()}</Text></View><View className="mini-order-actions">{status === "WAIT_PAY" && <Button className="mini-order-action mini-order-action-lime" onClick={() => pay(order)}>去支付</Button>}{status === "WAIT_PAY" && <Button className="mini-order-action" onClick={() => updateOrder(order)}>取消订单</Button>}{status === "SHIPPED" && <Button className="mini-order-action mini-order-action-lime" onClick={() => updateOrder(order)}>确认收货</Button>}{(status === "PAID" || status === "SHIPPED") && <Button className="mini-order-action" onClick={() => void refund(order)}>申请售后</Button>}{status === "RECEIVED" && <Button className="mini-order-action" onClick={() => void review(order)}>写评价</Button>}</View></View>; })}</View></View>;
 }

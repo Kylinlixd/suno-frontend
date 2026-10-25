@@ -21,6 +21,7 @@ interface AuthState {
   ready: boolean;
   setSession: (session: AuthSession | null) => void;
   login: (username: string, password: string) => Promise<AuthSession>;
+  smsLogin: (phone: string, code: string) => Promise<AuthSession>;
   register: (username: string, password: string) => Promise<AuthSession>;
   logout: () => Promise<void>;
   hydrate: () => Promise<void>;
@@ -32,6 +33,7 @@ export const useAuth = create<AuthState>((set) => ({
   setSession: (session) => set({ session }),
   login: async (username, password) => { const session = await sessionClient.login(username, password); set({ session, ready: true }); return session; },
   register: async (username, password) => { const session = await sessionClient.register(username, password); set({ session, ready: true }); return session; },
+  smsLogin: async (phone, code) => { const session = await sessionClient.loginWithSms(phone, code); set({ session, ready: true }); return session; },
   logout: async () => { await sessionClient.logout(); set({ session: null, ready: true }); },
   hydrate: async () => { const existing = sessionClient.read(); if (!existing) { set({ ready: true }); return; } try { const user = await sessionClient.me(); set({ session: { ...existing, ...user }, ready: true }); } catch { await sessionClient.logout(); set({ session: null, ready: true }); } }
 }));

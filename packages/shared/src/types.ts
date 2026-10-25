@@ -77,6 +77,8 @@ export interface Listing {
   stock: number;
   favorite?: boolean;
   story: string;
+  /** 商品图库（主图 + 追加图，去重）；无图库时仅含主图 */
+  images?: string[];
 }
 
 export interface ListingFilters {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { Button, Image, Navigator, Text, View } from "@tarojs/components";
+import { Button, Image, Navigator, Swiper, SwiperItem, Text, View } from "@tarojs/components";
 import Taro, { useRouter } from "@tarojs/taro";
-import { addFavorite, addToCart, createResaleOrder, getListing, getReviews, isFavoriteListing, removeFavorite, type Listing, type ReviewSummary } from "@suno/shared";
+import { addFavorite, addToCart, getListing, getReviews, isFavoriteListing, removeFavorite, type Listing, type ReviewSummary } from "@suno/shared";
 import { apiOptions, sessionApiOptions, sessionClient } from "../../lib/auth";
 
 export default function Product() {
@@ -9,6 +9,7 @@ export default function Product() {
   const [listing, setListing] = useState<Listing>();
   const [reviews, setReviews] = useState<ReviewSummary>();
   const [isFavorite, setIsFavorite] = useState(false);
+  const gallery = listing?.images?.length ? listing.images : (listing ? [listing.image] : []);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const load = useCallback(() => {
     setLoadState("loading");
@@ -26,6 +27,10 @@ export default function Product() {
   const currentListing = listing;
   async function toggleFavorite() { const session = sessionClient.read(); if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; } try { const options = sessionApiOptions(); if (isFavorite) await removeFavorite(currentListing.id, session?.userId, options); else await addFavorite(currentListing.id, session?.userId, options); setIsFavorite((value) => !value); } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "操作失败", icon: "none" }); } }
   async function addCart() { const session = sessionClient.read(); if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; } try { await addToCart(currentListing.id, sessionApiOptions()); Taro.showToast({ title: "已加入购物车", icon: "success" }); } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "加入失败", icon: "none" }); } }
-  async function order() { const session = sessionClient.read(); if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; } try { await createResaleOrder(currentListing.id, session?.userId, sessionApiOptions()); Taro.showToast({ title: "订单已创建", icon: "success" }); } catch (error) { Taro.showToast({ title: error instanceof Error ? error.message : "下单失败", icon: "none" }); } }
-  return <View className="mini-page mini-product-detail"><Navigator url="/pages/market/index" className="mini-back">← 返回市场</Navigator><Image className="mini-detail-image" src={listing.image} mode="aspectFill" /><Text className="mini-eyebrow">{listing.brand} / {listing.category}</Text><Text className="mini-detail-title">{listing.name}</Text><Text className="mini-detail-story">{listing.story}</Text><View className="mini-detail-price"><Text>¥{listing.price.toLocaleString()}</Text>{listing.originalPrice && <Text className="mini-old-price">¥{listing.originalPrice.toLocaleString()}</Text>}</View><View className="mini-detail-actions"><Button className="mini-button mini-button-dark" onClick={order}>立即下单 ↗</Button><Button className="mini-button" onClick={addCart}>加入购物车</Button><Button className={`mini-save-button ${isFavorite ? "saved" : ""}`} onClick={toggleFavorite}>{isFavorite ? "已收藏" : "收藏"}</Button></View>{reviews && reviews.items.length > 0 && <View className="mini-reviews"><Text className="mini-reviews-title">{reviews.reviewCount} 条评价 · 平均 {reviews.avgRating.toFixed(1)} 分</Text>{reviews.items.map((review) => <View className="mini-review" key={review.orderNo}><Text className="mini-review-stars">{"★".repeat(Math.round(review.rating))}</Text><Text className="mini-review-content">{review.content}</Text>{review.merchantReply ? <Text className="mini-review-reply">商家回复 · {review.merchantReply}</Text> : null}<Text className="mini-review-meta">{review.createdAt} · {review.usefulCount} 人觉得有用</Text></View>)}</View>}</View>;
+  async function order() {
+    const session = sessionClient.read();
+    if (!apiOptions.demo && !session) { Taro.showToast({ title: "请先登录", icon: "none" }); return; }
+    Taro.navigateTo({ url: `/pages/checkout/index?listing=${currentListing.id}` });
+  }
+  return <View className="mini-page mini-product-detail"><Navigator url="/pages/market/index" className="mini-back">← 返回市场</Navigator><Swiper className="mini-detail-swiper" indicatorDots circular>{gallery.map((image, index) => <SwiperItem key={index}><Image className="mini-detail-image" src={image} mode="aspectFill" /></SwiperItem>)}</Swiper><Text className="mini-eyebrow">{listing.brand} / {listing.category}</Text><Text className="mini-detail-title">{listing.name}</Text><Text className="mini-detail-story">{listing.story}</Text><View className="mini-detail-price"><Text>¥{listing.price.toLocaleString()}</Text>{listing.originalPrice && <Text className="mini-old-price">¥{listing.originalPrice.toLocaleString()}</Text>}</View><View className="mini-detail-actions"><Button className="mini-button mini-button-dark" onClick={order}>去结算 ↗</Button><Button className="mini-button" onClick={addCart}>加入购物车</Button><Button className={`mini-save-button ${isFavorite ? "saved" : ""}`} onClick={toggleFavorite}>{isFavorite ? "已收藏" : "收藏"}</Button></View>{reviews && reviews.items.length > 0 && <View className="mini-reviews"><Text className="mini-reviews-title">{reviews.reviewCount} 条评价 · 平均 {reviews.avgRating.toFixed(1)} 分</Text>{reviews.items.map((review) => <View className="mini-review" key={review.orderNo}><Text className="mini-review-stars">{"★".repeat(Math.round(review.rating))}</Text><Text className="mini-review-content">{review.content}</Text>{review.merchantReply ? <Text className="mini-review-reply">商家回复 · {review.merchantReply}</Text> : null}<Text className="mini-review-meta">{review.createdAt} · {review.usefulCount} 人觉得有用</Text></View>)}</View>}</View>;
 }

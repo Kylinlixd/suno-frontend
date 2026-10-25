@@ -22,3 +22,15 @@
 .mini-link { font-size: .72rem; color: #6f8f3e; margin: .4rem 0; }
 .mini-type-row { display: flex; gap: .4rem; margin: .6rem 0; flex-wrap: wrap; }
 .mini-textarea { width: 100%; min-height: 140rpx; border: 1px solid rgba(21,23,20,.15); border-radius: .6rem; padding: .6rem; font-size: .8rem; margin-bottom: .8rem; box-sizing: border-box; }
+.mini-option { display: flex; flex-direction: column; gap: .25rem; padding: .8rem; border: 1px solid rgba(21,23,20,.15); border-radius: .7rem; margin-bottom: .6rem; }
+.mini-option.selected { border-color: #151714; box-shadow: 0 0 0 1px #151714 inset; }
+.mini-option.closed { opacity: .5; }
+.mini-option-title { font-size: .85rem; font-weight: 700; }
+.mini-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .4rem; }
+.mini-summary { display: flex; flex-direction: column; gap: .3rem; background: #f6f5f0; border-radius: .7rem; padding: .8rem 1rem; margin: 1rem 0; font-size: .78rem; }
+.mini-payable { font-size: 1rem; font-weight: 800; }
+.mini-order-item { display: flex; flex-direction: column; gap: .25rem; padding: .8rem 0; border-bottom: 1px solid rgba(21,23,20,.08); }
+.mini-sms-row { display: flex; gap: .5rem; align-items: center; }
+.mini-points { margin-top: 1rem; display: flex; flex-direction: column; gap: .3rem; }
+.mini-points-balance { font-size: 1.3rem; font-weight: 800; }
+.mini-detail-swiper { height: 560rpx; border-radius: .8rem; overflow: hidden; margin-bottom: .8rem; }

@@ -63,3 +63,5 @@ em { color: #74786e; font-style: normal; }
 .login-tab.active { background: var(--suno-ink); color: var(--suno-paper); }
 
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+.sms-row { display: flex; gap: .6rem; align-items: center; }
+.sms-row input { flex: 1; }
