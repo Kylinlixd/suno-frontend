@@ -203,15 +203,43 @@ export async function getAdminReviewRiskTopListings(options?: ApiOptions): Promi
 export const getAdminSecurityTimeline = (lookbackMinutes: number, options?: ApiOptions) => request<Record<string, unknown>>(`/api/admin/auth/security-events/timeline?lookbackMinutes=${lookbackMinutes}`, {}, options);
 
 /** 支付待付订单：按后端 PaymentSignatureService 契约生成 HMAC-SHA256 签名 */
-export function payOrder(orderNo: string, options?: ApiOptions): Promise<Record<string, unknown>> {
-  if (options?.demo) return request<Record<string, unknown>>("/api/mall/orders/pay", { method: "POST", body: JSON.stringify({ orderNo }) }, options);
+export interface PayResult {
+  mode: "mock" | "alipay";
+  payUrl?: string;
+  payStatus?: string;
+  /** 支付宝模式下前端应跳转 payUrl（网页收银台）或展示二维码 */
+  alipayRedirectNeeded: boolean;
+}
+
+/**
+ * 发起支付：后端 payment.alipay.enabled=true 时返回已签名收银台跳转参数（mode=alipay + payUrl），
+ * 前端应 window.open(payUrl) 或 Taro 导航跳转；否则走 HMAC Mock 链路（mode=mock，直接落账）。
+ */
+export async function payOrder(orderNo: string, options?: ApiOptions): Promise<PayResult> {
+  if (options?.demo) {
+    await request<Record<string, unknown>>("/api/mall/orders/pay", { method: "POST", body: JSON.stringify({ orderNo }) }, options);
+    return { mode: "mock", payStatus: "PAID", alipayRedirectNeeded: false };
+  }
   const secret = options?.paymentSecret;
   if (!secret) return Promise.reject(new ApiError("未配置支付签名密钥（VITE_PAYMENT_SECRET / TARO_APP_PAYMENT_SECRET）", 500, "PAYMENT_SECRET_MISSING"));
   const idempotencyKey = `pay-${orderNo}-${Date.now()}`;
   const timestamp = Math.floor(Date.now() / 1000);
   const nonce = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256).toString(16).padStart(2, "0")).join("");
   const signature = hmacSha256Hex(`${orderNo}|${idempotencyKey}|${timestamp}|${nonce}`, secret);
-  return request<Record<string, unknown>>("/api/mall/orders/pay", { method: "POST", body: JSON.stringify({ orderNo, idempotencyKey, timestamp, nonce, signature }) }, options);
+  const response = await request<Record<string, unknown>>("/api/mall/orders/pay", { method: "POST", body: JSON.stringify({ orderNo, idempotencyKey, timestamp, nonce, signature }) }, options);
+  // 支付宝模式：后端返回 mode=alipay + payUrl（已签名收银台跳转）
+  if (response && typeof response.payUrl === "string" && response.payUrl.length > 0) {
+    return {
+      mode: "alipay",
+      payUrl: response.payUrl,
+      alipayRedirectNeeded: true
+    };
+  }
+  return {
+    mode: "mock",
+    payStatus: String(response?.payStatus ?? "PAID"),
+    alipayRedirectNeeded: false
+  };
 }
 
 export function createReview(body: { orderNo: string; buyerUserId: number | undefined; rating: number; content: string; imageUrls?: string[] }, options?: ApiOptions) {

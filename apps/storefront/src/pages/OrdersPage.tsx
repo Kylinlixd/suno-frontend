@@ -34,7 +34,14 @@ export function OrdersPage() {
   const summaryQuery = useQuery({ queryKey: ["orders-summary", session?.userId], queryFn: () => getOrderSummary(session?.userId, 365, sessionApiOptions()), enabled: canRead });
   const receiptMutation = useMutation({ mutationFn: (orderNo: string) => confirmReceipt(orderNo, session?.userId, sessionApiOptions()), onSuccess: () => { setActionError(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "确认收货失败，请稍后重试。") });
   const cancelMutation = useMutation({ mutationFn: (orderNo: string) => cancelOrder(orderNo, session?.userId, sessionApiOptions()), onSuccess: () => { setActionError(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "取消订单失败，请稍后重试。") });
-  const payMutation = useMutation({ mutationFn: (orderNo: string) => payOrder(orderNo, sessionApiOptions()), onSuccess: () => { setActionError(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "支付失败，请稍后重试。") });
+  const payMutation = useMutation({ mutationFn: (orderNo: string) => payOrder(orderNo, sessionApiOptions()), onSuccess: (result) => {
+    setActionError("");
+    if (result.alipayRedirectNeeded && result.payUrl) {
+      window.open(result.payUrl, "_blank", "noopener");
+      setActionError("已打开支付宝收银台，完成支付后请刷新订单状态。");
+    }
+    void queryClient.invalidateQueries({ queryKey: ["orders"] });
+  }, onError: (error) => setActionError(error instanceof Error ? error.message : "支付失败，请稍后重试。") });
   const trackMutation = useMutation({ mutationFn: (orderNo: string) => queryOrderTrack(orderNo, session?.userId, sessionApiOptions()), onSuccess: (data) => { setActionError(""); setTracking(data); }, onError: (error) => setActionError(error instanceof Error ? error.message : "物流信息获取失败，请稍后重试。") });
   const refundMutation = useMutation({ mutationFn: () => applyRefund(refundTarget?.orderNo ?? "", refundReason, sessionApiOptions()), onSuccess: () => { setActionError(""); setRefundTarget(null); setRefundReason(""); void queryClient.invalidateQueries({ queryKey: ["orders"] }); }, onError: (error) => setActionError(error instanceof Error ? error.message : "售后申请失败，请稍后重试。") });
   const orders = ordersQuery.data?.content ?? [];
