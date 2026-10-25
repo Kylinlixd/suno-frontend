@@ -128,8 +128,14 @@ export const demoAdminCoupons: Array<Record<string, unknown>> = [
 
 export const demoAdminReport = {
   totalOrders: 3, paidOrders: 2, completedOrders: 1, refundedOrders: 0, refundRate: 0,
-  gmv: 26299, refundedAmount: 0, recycleCount: 31, trendDays: 14,
-  trend: Array.from({ length: 14 }, (_, index) => ({ date: `2026-10-${index + 10}`, orders: (index * 7) % 5, paidOrders: (index * 3) % 4 }))
+  gmv: 26299, refundedAmount: 0, avgPaidAmount: 13149.5, payRate: 66.67, days: 14, trendDays: 14, recycleCount: 31,
+  trend: Array.from({ length: 14 }, (_, index) => ({ date: `2026-10-${index + 10}`, orders: (index * 7) % 5, paidOrders: (index * 3) % 4 })),
+  previous: { totalOrders: 2, paidOrders: 1, completedOrders: 1, refundedOrders: 0, refundRate: 0, gmv: 13150, refundedAmount: 0, avgPaidAmount: 13150, payRate: 50 },
+  delta: { totalOrders: 50, paidOrders: 100, gmv: 100, refundedOrders: 0, refundRate: 0, avgPaidAmount: 0 },
+  funnel: { ordered: 3, paid: 2, completed: 1, refunded: 0 },
+  recycle: { total: 31, listed: 24, listedRate: 77.42, estimatedTotal: 38600 },
+  coupons: { claimed: 12, redeemed: 5, redeemRate: 41.67 },
+  users: { total: 3, activeBuyers: 2 }
 };
 
 /** P1 演示：审计日志与管理端售后 */

@@ -146,3 +146,13 @@
 .report-trend { display: flex; align-items: flex-end; gap: .4rem; height: 160px; }
 .trend-bar { flex: 1; display: flex; align-items: flex-end; height: 100%; }
 .trend-bar i { display: block; width: 100%; background: var(--suno-ink); border-radius: .3rem .3rem 0 0; min-height: 4px; }
+
+/* ==================== P3 经营看板 ==================== */
+.dashboard-controls { display: flex; align-items: center; gap: .4rem; }
+.funnel-rows { display: grid; gap: .5rem; }
+.funnel-row { display: flex; justify-content: space-between; align-items: center; background: #f6f5f0; border-radius: .6rem; padding: .55rem .9rem; }
+.funnel-row span { color: #6d7567; font-size: .76rem; font-weight: 700; }
+.funnel-row strong { font-size: 1.05rem; }
+.funnel-row.rose strong { color: #d4483b; }
+.delta-good { color: #6f8f3e; font-size: .68rem; }
+.delta-bad { color: #d4483b; font-size: .68rem; }

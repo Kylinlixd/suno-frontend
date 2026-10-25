@@ -460,6 +460,10 @@ export function adminReportOverview(trendDays = 14, options?: ApiOptions) {
   return request<Record<string, unknown>>(`/api/admin/reports/overview?trendDays=${trendDays}`, {}, options);
 }
 
+export function adminExportReportCsv(trendDays = 14, options?: ApiOptions): Promise<string> {
+  return requestText(`/api/admin/reports/export?trendDays=${trendDays}`, {}, options);
+}
+
 export async function adminPageAuditLogs(page = 0, size = 20, options?: ApiOptions): Promise<Page<Record<string, unknown>>> {
   return normalizePage(await request<unknown>(`/api/admin/recycle/audit-logs/page?page=${page}&size=${size}`, {}, options), size);
 }
@@ -886,6 +890,7 @@ function demoResponse<T>(path: string, method: string, body?: BodyInit | null): 
   if (path.includes("/api/admin/recycle/resale-orders") && method === "GET") return demoPage(demoAdminOrders) as T;
   if (path.includes("/api/admin/users") && method === "GET") return demoPage(demoAdminUsers) as T;
   if (path.includes("/api/admin/coupons") && method === "GET") return demoAdminCoupons as T;
+  if (path.includes("/api/admin/reports/export") && method === "GET") return "metric,value\ndays,14\ntotalOrders,3\ngmv,26299" as T;
   if (path.includes("/api/admin/reports/overview") && method === "GET") return demoAdminReport as T;
   if (path.includes("/api/admin/recycle/audit-logs/page") && method === "GET") return demoPage(demoAuditLogs) as T;
   if (path.includes("/api/admin/recycle/refunds") && method === "GET") return demoPage(demoAdminRefunds) as T;

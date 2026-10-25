@@ -1,25 +1,88 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { createSecurityExportTask, downloadSecurityExportTask, getAdminMetrics, getAdminReviewRiskSummary, getPaymentReplaySummary } from "@suno/shared";
-import { apiOptions, sessionApiOptions } from "../lib/auth";
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { adminReportOverview } from "@suno/shared";
+import { apiOptions, sessionApiOptions } from "../lib/auth";
 
-const COUNT_TONES = ["tone-lime", "tone-amber", "tone-rose", "tone-blue"];
+const DAY_OPTIONS = [7, 14, 30];
 
+/** P3 经营看板第一屏：核心指标 + 环比 + 漏斗 + 回收/券/用户维度 */
 export function AdminDashboardPage() {
-  const metricsQuery = useQuery({ queryKey: ["admin-metrics"], queryFn: () => getAdminMetrics(sessionApiOptions()) });
-  const replayQuery = useQuery({ queryKey: ["payment-replay-summary"], queryFn: () => getPaymentReplaySummary(sessionApiOptions()) });
-  const riskQuery = useQuery({ queryKey: ["review-risk-summary"], queryFn: () => getAdminReviewRiskSummary(sessionApiOptions()) });
-  const [exportStatus, setExportStatus] = useState("");
-  const [exportTask, setExportTask] = useState<Record<string, unknown> | null>(null);
-  const exportMutation = useMutation({ mutationFn: () => createSecurityExportTask({ type: "summary", format: "csv", lookbackMinutes: 60, topN: 10, idempotencyKey: `suno-export-${Date.now()}` }, sessionApiOptions()), onSuccess: (result) => { setExportTask(result); setExportStatus(`${String(result.status ?? "已创建")} · ${String(result.fileName ?? result.taskId ?? "任务已提交")}`); }, onError: () => setExportStatus("导出任务创建失败，请稍后重试。") });
-  const downloadMutation = useMutation({ mutationFn: () => downloadSecurityExportTask(String(exportTask?.taskId ?? ""), sessionApiOptions()), onSuccess: (content) => { const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8" })); const anchor = document.createElement("a"); anchor.href = url; anchor.download = String(exportTask?.fileName ?? "security-events-summary.csv"); anchor.click(); URL.revokeObjectURL(url); setExportStatus(`${String(exportTask?.fileName ?? "导出文件")} · 已下载`); } });
-  const exportTaskId = String(exportTask?.taskId ?? "");
-  const metrics = metricsQuery.data;
-  const countEntries = Object.entries(metrics?.counts ?? {});
-  const loading = metricsQuery.isLoading || replayQuery.isLoading || riskQuery.isLoading;
-  return <div className="admin-page"><div className="admin-topbar"><div><p className="eyebrow">Suno operations</p><h1>今天，系统流转得很好。</h1></div><span className="admin-live"><i /> {apiOptions.demo ? "Demo data live" : "Live data"}</span></div>{metricsQuery.isError || replayQuery.isError || riskQuery.isError ? <div className="empty-state"><p>运营指标暂时无法加载，请检查权限或网络后重试。</p><button className="button button-dark" onClick={() => { void metricsQuery.refetch(); void replayQuery.refetch(); void riskQuery.refetch(); }}>重新加载 ↗</button></div> : <div className="metric-grid"><Metric label="安全事件（24h）" value={loading ? "—" : metrics?.totalEvents ?? 0} suffix="件" tone="lime" /><Metric label="重放队列待处理" value={loading ? "—" : replayQuery.data?.pending ?? 0} suffix="单" tone="amber" /><Metric label="重放死信" value={loading ? "—" : replayQuery.data?.dead ?? 0} suffix="单" tone="rose" /><Metric label="评论待处理报告" value={loading ? "—" : riskQuery.data?.pendingReportCount ?? 0} suffix="条" tone="blue" /></div>}<div className="admin-columns"><section className="admin-panel"><div className="panel-heading"><h2>安全事件分布（24h）</h2><div className="panel-actions"><button className="text-button" onClick={() => exportMutation.mutate()} disabled={exportMutation.isPending}>{exportMutation.isPending ? "正在生成…" : "生成导出任务 ↗"}</button>{exportTaskId && <button className="text-button" onClick={() => downloadMutation.mutate()} disabled={downloadMutation.isPending}>{downloadMutation.isPending ? "正在下载…" : "下载导出文件 ↘"}</button>}</div></div>{exportStatus && <p className="export-status">{exportStatus}</p>}{downloadMutation.isError && <p className="error-message admin-error">导出文件下载失败，请稍后重试。</p>}{metrics?.recommendation && <p className="panel-note">{metrics.recommendation}</p>}<div className="activity-list">{countEntries.map(([action, count], index) => <div className="activity-row" key={action}><i className={COUNT_TONES[index % COUNT_TONES.length]} /><span>{action}</span><strong>{count}</strong><small>次</small></div>)}{!loading && countEntries.length === 0 && <p className="muted">当前窗口暂无安全事件。</p>}</div></section><section className="admin-panel dark-panel"><p className="eyebrow">循环看板</p>{apiOptions.demo ? <><h2>本周每一件被重新选择的物品，都少了一点浪费。</h2><div className="admin-chart"><span style={{ height: "34%" }} /><span style={{ height: "58%" }} /><span style={{ height: "46%" }} /><span style={{ height: "72%" }} /><span style={{ height: "64%" }} /><span style={{ height: "91%" }} /><span style={{ height: "78%" }} /></div><div className="chart-labels"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div></> : <><h2>流转趋势</h2><p className="muted">图表数据需接入后端统计接口后展示，当前不渲染演示数据。</p></>}</section></div></div>;
+  const [days, setDays] = useState(14);
+  const reportQuery = useQuery({ queryKey: ["admin-report", days], queryFn: () => adminReportOverview(days, sessionApiOptions()) });
+  const data = reportQuery.data;
+  const delta = (data?.delta ?? {}) as Record<string, unknown>;
+  const recycle = (data?.recycle ?? {}) as Record<string, unknown>;
+  const coupons = (data?.coupons ?? {}) as Record<string, unknown>;
+  const users = (data?.users ?? {}) as Record<string, unknown>;
+  const funnel = (data?.funnel ?? {}) as Record<string, unknown>;
+  const trend = Array.isArray(data?.trend) ? data.trend as Array<Record<string, unknown>> : [];
+  const maxOrders = Math.max(1, ...trend.map((point) => Number(point.orders)));
+  return <div className="admin-page">
+    <div className="admin-topbar">
+      <div><p className="eyebrow">Suno operations</p><h1>今天，系统流转得很好。</h1></div>
+      <div className="dashboard-controls">
+        {DAY_OPTIONS.map((option) => <button key={option} className={`filter-button ${days === option ? "active" : ""}`} onClick={() => setDays(option)}>{option} 天</button>)}
+        <span className="admin-live"><i /> {apiOptions.demo ? "Demo data" : "Live"}</span>
+      </div>
+    </div>
+    {reportQuery.isError ? <div className="empty-state"><p>看板数据暂时无法加载，请检查权限或网络后重试。</p><button className="button button-dark" onClick={() => void reportQuery.refetch()}>重新加载 ↗</button></div> : <>
+      <div className="metric-grid">
+        <Metric label="GMV（应付）" value={fmt(data?.gmv)} prefix="¥" delta={delta.gmv} tone="lime" loading={reportQuery.isLoading} />
+        <Metric label="订单" value={fmt(data?.totalOrders)} suffix="单" delta={delta.totalOrders} tone="blue" loading={reportQuery.isLoading} />
+        <Metric label="支付转化" value={pct(data?.payRate)} suffix="%" tone="lime" loading={reportQuery.isLoading} />
+        <Metric label="客单价" value={fmt(data?.avgPaidAmount)} prefix="¥" delta={delta.avgPaidAmount} tone="blue" loading={reportQuery.isLoading} />
+        <Metric label="退款率" value={pct(data?.refundRate)} suffix="%" delta={delta.refundRate} invert tone="rose" loading={reportQuery.isLoading} />
+        <Metric label="回收单" value={fmt(recycle.total)} suffix="单" tone="amber" loading={reportQuery.isLoading} />
+        <Metric label="券核销率" value={pct(coupons.redeemRate)} suffix="%" sub={`领 ${fmt(coupons.claimed)} · 用 ${fmt(coupons.redeemed)}`} tone="amber" loading={reportQuery.isLoading} />
+        <Metric label="活跃买家" value={fmt(users.activeBuyers)} suffix="人" sub={`注册 ${fmt(users.total)}`} tone="lime" loading={reportQuery.isLoading} />
+      </div>
+      <div className="admin-columns">
+        <section className="admin-panel">
+          <div className="panel-heading"><h2>订单趋势（{String(data?.days ?? days)} 日）</h2></div>
+          <div className="report-trend">{trend.map((point) => <div className="trend-bar" key={String(point.date)} title={`${String(point.date)}：${Number(point.orders)} 单 / 支付 ${Number(point.paidOrders)}`}><i style={{ height: `${Math.max(6, (Number(point.orders) / maxOrders) * 100)}%` }} /></div>)}</div>
+        </section>
+        <section className="admin-panel">
+          <div className="panel-heading"><h2>转化漏斗</h2><span className="muted">下单 → 支付 → 完成 → 退款</span></div>
+          <div className="funnel-rows">
+            <FunnelRow label="下单" value={funnel.ordered} loading={reportQuery.isLoading} />
+            <FunnelRow label="支付" value={funnel.paid} loading={reportQuery.isLoading} />
+            <FunnelRow label="完成" value={funnel.completed} loading={reportQuery.isLoading} />
+            <FunnelRow label="退款" value={funnel.refunded} loading={reportQuery.isLoading} tone="rose" />
+          </div>
+          <p className="muted" style={{ marginTop: "1rem" }}>回收上架率 {pct(recycle.listedRate)}%（{fmt(recycle.listed)}/{fmt(recycle.total)}），回收估价总额 ¥{fmt(recycle.estimatedTotal)}。</p>
+        </section>
+      </div>
+    </>}
+  </div>;
 }
 
-function Metric({ label, value, suffix, tone }: { label: string; value: number | string; suffix: string; tone: string }) {
-  return <div className={`metric-card metric-${tone}`}><span>{label}</span><strong>{value}<small>{suffix}</small></strong><p>实时同步后端</p></div>;
+function Metric({ label, value, prefix, suffix, delta, invert, sub, tone, loading }: { label: string; value: string; prefix?: string; suffix?: string; delta?: unknown; invert?: boolean; sub?: string; tone: string; loading?: boolean }) {
+  const deltaValue = typeof delta === "number" ? delta : undefined;
+  return <div className={`metric-card metric-${tone}`}>
+    <span>{label}</span>
+    <strong>{loading ? "—" : `${prefix ?? ""}${value}${suffix ?? ""}`}</strong>
+    {sub ? <p>{sub}</p> : deltaValue !== undefined && !loading
+      ? <p className={deltaTone(deltaValue, invert)}>{deltaValue > 0 ? "▲" : deltaValue < 0 ? "▼" : "•"} {Math.abs(deltaValue)}% 环比</p>
+      : <p>{loading ? "同步中…" : "实时同步后端"}</p>}
+  </div>;
+}
+
+function FunnelRow({ label, value, tone, loading }: { label: string; value: unknown; tone?: string; loading?: boolean }) {
+  const numeric = Number(value ?? 0);
+  return <div className={`funnel-row ${tone ?? ""}`}><span>{label}</span><strong>{loading ? "—" : numeric.toLocaleString()}</strong></div>;
+}
+
+function deltaTone(value: number, invert?: boolean): string {
+  const good = invert ? value <= 0 : value >= 0;
+  return good ? "delta-good" : "delta-bad";
+}
+
+function fmt(value: unknown): string {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? numeric.toLocaleString() : "0";
+}
+
+function pct(value: unknown): string {
+  const numeric = Number(value ?? 0);
+  return Number.isFinite(numeric) ? String(numeric) : "0";
 }
