@@ -45,11 +45,14 @@ export interface ApiOptions {
   fetcher?: Fetcher;
   requester?: Requester;
   textRequester?: TextRequester;
+  /** multipart 上传专用通道（会话层带 token + 401 刷新；通用 request 会强设 JSON Content-Type，不可复用） */
+  uploader?: Uploader;
 }
 
 export type Fetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 export type Requester = <T>(path: string, init?: RequestInit) => Promise<T>;
 export type TextRequester = (path: string, init?: RequestInit) => Promise<string>;
+export type Uploader = (path: string, form: FormData) => Promise<unknown>;
 
 export interface Page<T> {
   content: T[];

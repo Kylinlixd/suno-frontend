@@ -37,4 +37,4 @@ export const useAuth = create<AuthState>((set) => ({
 }));
 
 export const apiOptions: ApiOptions = { demo, baseUrl, etagCache };
-export const sessionApiOptions = (): ApiOptions => ({ demo, baseUrl, etagCache, paymentSecret, userId: useAuth.getState().session?.userId, requester: sessionClient.request, textRequester: sessionClient.requestText });
+export const sessionApiOptions = (): ApiOptions => ({ demo, baseUrl, etagCache, paymentSecret, userId: useAuth.getState().session?.userId, requester: sessionClient.request, textRequester: sessionClient.requestText, uploader: sessionClient.upload });

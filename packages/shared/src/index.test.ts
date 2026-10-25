@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { ApiError, addFavorite, cancelOrder, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminReviewRiskTopListings, getAdminSecurityTimeline, getCategories, getFavorites, getListing, getListings, getMyPointsLedger, getOrderSummary, getOrders, getPaymentReplaySummary, getReviews, isFavoriteListing, normalizePage, payOrder, queryOrderTrack, unwrapResponse } from "./index";
+import { describe, expect, it, vi } from "vitest";
+import { ApiError, addFavorite, cancelOrder, createResaleOrder, createSecurityExportTask, downloadSecurityExportTask, getAdminReviewRiskSummary, getAdminReviewRiskTopListings, getAdminSecurityTimeline, getCategories, getFavorites, getListing, getListings, getMyPointsLedger, getOrderSummary, getOrders, getPaymentReplaySummary, getReviews, isFavoriteListing, normalizePage, payOrder, queryOrderTrack, unwrapResponse, uploadImage } from "./index";
 import { hmacSha256Hex } from "./paySignature";
 import { createSessionClient, type StorageAdapter } from "./session";
 import type { ApiOptions } from "./types";
@@ -92,6 +92,27 @@ describe("unwrapResponse", () => {
     expect(calls[5]).toMatchObject({ path: "http://api/api/admin/recycle/review-risk/summary?lookbackMinutes=1440", method: "GET" });
     expect(calls[6]).toMatchObject({ path: "http://api/api/admin/auth/security-events/timeline?lookbackMinutes=60", method: "GET" });
     expect(calls[7]).toMatchObject({ path: "http://api/api/admin/auth/security-events/export/tasks", method: "POST", body: JSON.stringify({ type: "summary", format: "csv", lookbackMinutes: 60, topN: 10, idempotencyKey: "test-export" }) });
+  });
+
+  it("uploads images without forcing a JSON content type and unwraps the envelope once", async () => {
+    // fetcher 直连（带 token）：绝不能设置 Content-Type（multipart 边界由浏览器生成）
+    const seenHeaders: Array<Record<string, string>> = [];
+    const fetcher = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const headers: Record<string, string> = {};
+      new Headers(init?.headers).forEach((value, key) => { headers[key] = value; });
+      seenHeaders.push(headers);
+      return new Response(JSON.stringify({ success: true, message: "OK", data: { url: "/files/a.png", filename: "a.png", size: 9 } }), { status: 200 });
+    };
+    const blob = new Blob(["x"], { type: "image/png" });
+    await expect(uploadImage(blob, "a.png", { baseUrl: "http://api", token: "tok-1", fetcher })).resolves.toBe("/files/a.png");
+    expect(seenHeaders[0]["content-type"]).toBeUndefined();
+    expect(seenHeaders[0]["authorization"]).toBe("Bearer tok-1");
+    expect(seenHeaders.length).toBe(1);
+
+    // uploader 通道（会话层）：透传 FormData，返回已解包的 data
+    const uploader = vi.fn().mockResolvedValue({ url: "/files/b.png" });
+    await expect(uploadImage(blob, "b.png", { uploader: uploader as never })).resolves.toBe("/files/b.png");
+    expect(uploader).toHaveBeenCalledWith("/api/uploads", expect.any(FormData));
   });
 
   it("downloads a security export as raw text", async () => {

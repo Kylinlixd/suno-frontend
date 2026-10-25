@@ -1,5 +1,5 @@
 import { ApiError, request, requestText } from "./api";
-import type { ApiOptions, AuthSession, AuthTokens, AuthUser, StorageAdapter } from "./types";
+import type { ApiOptions, ApiResponse, AuthSession, AuthTokens, AuthUser, StorageAdapter } from "./types";
 
 export type { StorageAdapter } from "./types";
 
@@ -53,6 +53,31 @@ export function createSessionClient(options: SessionClientOptions) {
     }
   }
 
+  /** multipart 上传：直连 fetch（不设 Content-Type，保留浏览器边界），复用 401 刷新一次 */
+  async function sessionUpload(path: string, form: FormData): Promise<unknown> {
+    const fetcher = options.fetcher ?? fetch;
+    const baseUrl = options.baseUrl ?? "http://localhost:8080";
+    for (let attempt = 0; ; attempt++) {
+      const current = read();
+      if (!current?.accessToken) throw new ApiError("请先登录", 401, "AUTH_REQUIRED");
+      const response = await fetcher(`${baseUrl}${path}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${current.accessToken}` },
+        body: form
+      });
+      if (response.status === 401 && attempt === 0) {
+        await refresh();
+        continue;
+      }
+      let payload: ApiResponse<unknown> | undefined;
+      try { payload = await response.json() as ApiResponse<unknown>; } catch { payload = undefined; }
+      if (!response.ok || !payload || payload.success !== true) {
+        throw new ApiError(payload?.message || "上传失败，请稍后重试", response.status, payload?.errorCode ?? undefined);
+      }
+      return payload.data;
+    }
+  }
+
   async function sessionTextRequest(path: string, init: RequestInit = {}, retried = false): Promise<string> {
     if (options.demo) return requestText(path, init, options);
     const current = read();
@@ -96,6 +121,7 @@ export function createSessionClient(options: SessionClientOptions) {
     refresh,
     requestText: sessionTextRequest,
     request: sessionRequest,
+    upload: sessionUpload,
     async me(): Promise<AuthUser> {
       const data = await sessionRequest<AuthUser>("/api/auth/me");
       const current = read();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { adminAdjustListingPrice, adminPageListings, adminSetListingShelf } from "@suno/shared";
+import { adminAdjustListingPrice, adminAttachListingImage, adminPageListings, adminSetListingShelf } from "@suno/shared";
 import { apiOptions } from "../lib/auth";
 
 const STATUS_TABS = ["", "ON_SHELF", "OFF_SHELF", "SOLD_OUT"];
@@ -16,6 +16,11 @@ export function AdminProductsPage() {
     mutationFn: (payload: { listingId: number; salePrice: number }) => adminAdjustListingPrice(payload.listingId, payload.salePrice, apiOptions),
     onSuccess: (data) => { setMessage(`改价成功：¥${Number(data.salePrice).toLocaleString()}`); void queryClient.invalidateQueries({ queryKey: ["admin-listings"] }); },
     onError: (error) => setMessage(error instanceof Error ? error.message : "改价失败。")
+  });
+  const attachMutation = useMutation({
+    mutationFn: (payload: { listingId: number; imageUrl: string }) => adminAttachListingImage(payload.listingId, payload.imageUrl, apiOptions),
+    onSuccess: () => { setMessage("图片已挂载到商品图库。"); void queryClient.invalidateQueries({ queryKey: ["admin-listings"] }); },
+    onError: (error) => setMessage(error instanceof Error ? error.message : "挂图失败。")
   });
   const shelfMutation = useMutation({
     mutationFn: (payload: { listingId: number; onShelf: boolean }) => adminSetListingShelf(payload.listingId, payload.onShelf, apiOptions),
@@ -37,6 +42,7 @@ export function AdminProductsPage() {
         <span>{Number(row.stock)} 件 · {String(row.status)}</span>
         <span className="admin-row-actions">
           <button className="text-button" onClick={() => { const input = window.prompt("输入新价格", String(row.salePrice)); const price = Number(input); if (Number.isFinite(price) && price > 0) priceMutation.mutate({ listingId: Number(row.listingId), salePrice: price }); }}>改价</button>
+          <button className="text-button" disabled={attachMutation.isPending} onClick={() => { const url = window.prompt("图片地址（可经用户端 /api/uploads 或图床获取）"); if (url && url.trim()) attachMutation.mutate({ listingId: Number(row.listingId), imageUrl: url.trim() }); }}>挂图</button>
           {row.status === "ON_SHELF"
             ? <button className="text-button" disabled={shelfMutation.isPending} onClick={() => shelfMutation.mutate({ listingId: Number(row.listingId), onShelf: false })}>下架</button>
             : <button className="text-button" disabled={shelfMutation.isPending} onClick={() => shelfMutation.mutate({ listingId: Number(row.listingId), onShelf: true })}>上架</button>}

@@ -45,4 +45,4 @@ const fetcher: NonNullable<ApiOptions["fetcher"]> = async (input, init) => {
 export const sessionClient = createSessionClient({ storage, fetcher, baseUrl, demo, deviceId: "suno-mini" });
 const paymentSecret = typeof process !== "undefined" ? process.env.TARO_APP_PAYMENT_SECRET : undefined;
 export const apiOptions: ApiOptions = { demo, baseUrl };
-export const sessionApiOptions = (): ApiOptions => ({ demo, baseUrl, paymentSecret, userId: sessionClient.read()?.userId, requester: sessionClient.request, textRequester: sessionClient.requestText });
+export const sessionApiOptions = (): ApiOptions => ({ demo, baseUrl, paymentSecret, userId: sessionClient.read()?.userId, requester: sessionClient.request, textRequester: sessionClient.requestText, uploader: sessionClient.upload });

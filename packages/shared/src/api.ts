@@ -486,32 +486,32 @@ export function adminAttachListingImage(listingId: number, imageUrl: string, opt
   return request<Record<string, unknown>>(`/api/admin/recycle/listings/${encodeURIComponent(listingId)}/images`, { method: "POST", body: JSON.stringify({ imageUrl }) }, options);
 }
 
-/** P1 图片上传：multipart，返回 { url } */
+/** P1/P2 图片上传：multipart。会话路径必须用 uploader 通道——通用 request() 会强设
+ * JSON Content-Type 破坏 multipart 边界，且会解包 envelope，不能复用。 */
 export async function uploadImage(file: File | Blob, filename: string, options?: ApiOptions): Promise<string> {
   if (options?.demo) {
     return `/files/demo-${Date.now()}.png`;
   }
   const form = new FormData();
   form.append("file", file, filename);
+  if (options?.uploader) {
+    const data = await options.uploader("/api/uploads", form) as { url?: string } | undefined;
+    return data?.url ?? "";
+  }
   const fetcher = options?.fetcher ?? fetch;
-  const response = await withUpload(fetcher, form, options);
-  const payload = await response.json() as ApiResponse<{ url: string }>;
-  if (!response.ok || payload.success !== true) {
+  const headers: Record<string, string> = {};
+  if (options?.token) headers.Authorization = `Bearer ${options.token}`;
+  const response = await fetcher(`${options?.baseUrl ?? "http://localhost:8080"}/api/uploads`, {
+    method: "POST",
+    headers,
+    body: form
+  });
+  let payload: ApiResponse<{ url: string }> | undefined;
+  try { payload = await response.json() as ApiResponse<{ url: string }>; } catch { payload = undefined; }
+  if (!response.ok || !payload || payload.success !== true) {
     throw new ApiError(payload?.message || "上传失败", response.status, payload?.errorCode ?? undefined);
   }
   return payload.data?.url ?? "";
-}
-
-async function withUpload(fetcher: NonNullable<ApiOptions["fetcher"]>, form: FormData, options?: ApiOptions): Promise<Response> {
-  const current = (options as { requester?: <T>(path: string, init?: RequestInit) => Promise<T> } | undefined)?.requester as unknown as ((path: string, init?: RequestInit) => Promise<Response>) | undefined;
-  const headers: Record<string, string> = {};
-  if (current) {
-    // 会话路径：经 requester 走 401 刷新；multipart 不设 Content-Type（浏览器自动边界）
-    const raw = await current("/api/uploads", { method: "POST", body: form });
-    return raw as unknown as Response;
-  }
-  if (options?.token) headers.Authorization = `Bearer ${options.token}`;
-  return fetcher(`${options?.baseUrl ?? "http://localhost:8080"}/api/uploads`, { method: "POST", headers, body: form });
 }
 
 // ==================== P2 客服工单 ====================
