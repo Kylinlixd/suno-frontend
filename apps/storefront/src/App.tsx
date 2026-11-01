@@ -5,6 +5,7 @@ import { HomePage } from "./pages/HomePage";
 import { MarketPage } from "./pages/MarketPage";
 import { ProductPage } from "./pages/ProductPage";
 import { RecyclePage } from "./pages/RecyclePage";
+import { RecycleCartPage } from "./pages/RecycleCartPage";
 import { OrdersPage } from "./pages/OrdersPage";
 import { AccountPage } from "./pages/AccountPage";
 import { CartPage } from "./pages/CartPage";
@@ -23,6 +24,7 @@ function CustomerShell() {
         <Route path="/market" element={<MarketPage />} />
         <Route path="/market/:id" element={<ProductPage />} />
         <Route path="/recycle" element={<RecyclePage />} />
+        <Route path="/recycle-cart" element={<RecycleCartPage />} />
         <Route path="/orders" element={<OrdersPage />} />
         <Route path="/cart" element={<CartPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />

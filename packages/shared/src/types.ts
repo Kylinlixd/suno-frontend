@@ -314,3 +314,28 @@ export const recycleStatusLabel: Record<RecycleStatus, string> = {
   QUALITY_CONFIRMED: "质检完成",
   LISTED: "已上架"
 };
+
+/** 回收车条目：用户暂存待回收旧物（扫码或手动添加），提交后转回收单 */
+export interface RecycleCartItem {
+  cartItemId: number;
+  barcode?: string;
+  title: string;
+  author?: string;
+  publisher?: string;
+  publishYear?: number;
+  category: string;
+  wearScore: number;
+  estimatedPrice: number;
+  grade: string;
+  source: "SCAN" | "MANUAL";
+  status: "IN_CART" | "SUBMITTED";
+  createdAt: string;
+}
+
+/** 回收车提交结果 */
+export interface RecycleCartSubmitResult {
+  submittedCount: number;
+  orderNumbers: string[];
+  totalEstimatedPrice: number;
+  totalPoints: number;
+}

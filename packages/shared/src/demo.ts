@@ -1,4 +1,4 @@
-import type { Address, AdminMetrics, CartEntry, Category, CouponSummary, Listing, NotificationItem, Order, Page, PointsLedger, RecycleApplication, RefundRecord } from "./types";
+import type { Address, AdminMetrics, CartEntry, Category, CouponSummary, Listing, NotificationItem, Order, Page, PointsLedger, RecycleApplication, RecycleCartItem, RefundRecord } from "./types";
 import { placeholderImage } from "./placeholder";
 
 export const demoListings: Listing[] = [
@@ -66,6 +66,12 @@ export const demoAddresses: Address[] = [
 export const demoCartEntries: CartEntry[] = [
   { cartItemId: 11, listingId: 2, brand: "Leica", model: "Leica Q2 Monochrom", grade: "GOOD", salePrice: 24800, stock: 1, listingStatus: "ON_SHELF", image: placeholderImage("leica-q2"), addedAt: "2026-08-05 10:12", orderable: true },
   { cartItemId: 12, listingId: 5, brand: "Herman Miller", model: "Herman Miller Aeron", grade: "GOOD", salePrice: 3299, stock: 1, listingStatus: "ON_SHELF", image: placeholderImage("aeron"), addedAt: "2026-08-04 21:40", orderable: true }
+];
+
+/** R5 演示回收车：书籍扫码 + 手动添加多品类旧物 */
+export const demoRecycleCartItems: RecycleCartItem[] = [
+  { cartItemId: 21, barcode: "9780306406157", title: "Dune", author: "Frank Herbert", publisher: "Penguin Books", publishYear: 1965, category: "图书", wearScore: 85, estimatedPrice: 42.00, grade: "GOOD", source: "SCAN", status: "IN_CART", createdAt: "2026-08-05 14:20" },
+  { cartItemId: 22, title: "旧毛衣", category: "衣物", wearScore: 75, estimatedPrice: 25.00, grade: "MEDIUM", source: "MANUAL", status: "IN_CART", createdAt: "2026-08-05 14:25" }
 ];
 
 /** M2 演示优惠券：可领 + 我的 */

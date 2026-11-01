@@ -1,7 +1,7 @@
-import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminRefunds, demoAdminReport, demoAdminUsers, demoAuditLogs, demoSupportTickets, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycles, demoRefunds } from "./demo";
+import { demoAddresses, demoAdminCoupons, demoAdminListings, demoAdminMetrics, demoAdminOrders, demoAdminRefunds, demoAdminReport, demoAdminUsers, demoAuditLogs, demoCartEntries, demoCategories, demoClaimableCoupons, demoListings, demoMyCoupons, demoNotifications, demoOrders, demoPage, demoPointsLedger, demoRecycleCartItems, demoRecycles, demoRefunds, demoSupportTickets } from "./demo";
 import { hmacSha256Hex } from "./paySignature";
 import { placeholderImage } from "./placeholder";
-import type { Address, AddressPayload, AdminMetrics, ApiOptions, ApiResponse, CartEntry, Category, CouponSummary, Listing, ListingFilters, NotificationItem, Order, OrderFilters, OrderSummary, Page, PaymentReplaySummary, PointsLedger, RecycleApplication, RefundRecord, Review, ReviewRiskListing, ReviewRiskSummary, ReviewSummary, SessionList } from "./types";
+import type { Address, AddressPayload, AdminMetrics, ApiOptions, ApiResponse, CartEntry, Category, CouponSummary, Listing, ListingFilters, NotificationItem, Order, OrderFilters, OrderSummary, Page, PaymentReplaySummary, PointsLedger, RecycleApplication, RecycleCartItem, RecycleCartSubmitResult, RefundRecord, Review, ReviewRiskListing, ReviewRiskSummary, ReviewSummary, SessionList } from "./types";
 
 export class ApiError extends Error {
   constructor(message: string, public readonly status?: number, public readonly code?: string) {
@@ -360,6 +360,64 @@ function toCartEntry(value: unknown): CartEntry {
     image: String(item.image ?? placeholderImage(`suno-cart-${listingId}`)),
     addedAt: String(item.addedAt ?? ""),
     orderable: Boolean(item.orderable)
+  };
+}
+
+// ==================== R5 回收车 ====================
+
+/** 扫码估价添加：ISBN → Open Library → 估价 → 回收车 */
+export function scanRecycleByIsbn(isbn: string, wearScore: number, options?: ApiOptions): Promise<RecycleCartItem> {
+  if (!options?.demo && !isbn.trim()) return Promise.reject(new ApiError("请输入 ISBN", 400, "PARAM_INVALID"));
+  return request<Record<string, unknown>>("/api/recycle/scan", { method: "POST", body: JSON.stringify({ isbn, wearScore }) }, options)
+    .then((data) => toRecycleCartItem(data));
+}
+
+/** 查看回收车 */
+export async function getRecycleCart(options?: ApiOptions): Promise<RecycleCartItem[]> {
+  if (options?.demo) return demoRecycleCartItems;
+  const data = await request<unknown>("/api/recycle/cart", {}, options);
+  return Array.isArray(data) ? data.map(toRecycleCartItem) : [];
+}
+
+/** 手动添加旧物（非书籍类：衣物/家居/美妆等） */
+export function addManualRecycleItem(payload: { title: string; category: string; wearScore: number; estimatedPrice?: number }, options?: ApiOptions): Promise<RecycleCartItem> {
+  if (!options?.demo && !payload.title.trim()) return Promise.reject(new ApiError("请填写物品名称", 400, "PARAM_INVALID"));
+  return request<Record<string, unknown>>("/api/recycle/cart", { method: "POST", body: JSON.stringify(payload) }, options)
+    .then((data) => toRecycleCartItem(data));
+}
+
+/** 从回收车移除 */
+export function removeRecycleCartItem(cartItemId: number, options?: ApiOptions) {
+  return request<Record<string, unknown>>(`/api/recycle/cart/${encodeURIComponent(cartItemId)}`, { method: "DELETE" }, options);
+}
+
+/** 提交回收车：每件旧物 → 商品 + 回收单 + 积分 + 通知 */
+export function submitRecycleCart(options?: ApiOptions): Promise<RecycleCartSubmitResult> {
+  return request<Record<string, unknown>>("/api/recycle/cart/submit", { method: "POST" }, options)
+    .then((data) => ({
+      submittedCount: numberValue(data.submittedCount),
+      orderNumbers: Array.isArray(data.orderNumbers) ? (data.orderNumbers as unknown[]).map(String) : [],
+      totalEstimatedPrice: numberValue(data.totalEstimatedPrice),
+      totalPoints: numberValue(data.totalPoints)
+    }));
+}
+
+function toRecycleCartItem(value: unknown): RecycleCartItem {
+  const item = value as Record<string, unknown>;
+  return {
+    cartItemId: numberValue(item.cartItemId),
+    barcode: item.barcode ? String(item.barcode) : undefined,
+    title: String(item.title ?? ""),
+    author: item.author ? String(item.author) : undefined,
+    publisher: item.publisher ? String(item.publisher) : undefined,
+    publishYear: item.publishYear == null ? undefined : numberValue(item.publishYear),
+    category: String(item.category ?? "其他"),
+    wearScore: numberValue(item.wearScore),
+    estimatedPrice: numberValue(item.estimatedPrice),
+    grade: String(item.grade ?? "MEDIUM"),
+    source: item.source === "SCAN" ? "SCAN" : "MANUAL",
+    status: item.status === "SUBMITTED" ? "SUBMITTED" : "IN_CART",
+    createdAt: String(item.createdAt ?? "")
   };
 }
 
@@ -935,6 +993,79 @@ function demoResponse<T>(path: string, method: string, body?: BodyInit | null): 
   if (path === "/api/recycle/orders" && method === "POST") {
     const data = JSON.parse(String(body ?? "{}")) as Pick<RecycleApplication, "title" | "image">;
     return { id: `r-${Date.now()}`, ...data, status: "SUBMITTED", logisticsStatus: "等待审核", createdAt: new Date().toISOString() } as T;
+  }
+  // R5 回收车：扫码估价添加
+  if (path === "/api/recycle/scan" && method === "POST") {
+    const payload = JSON.parse(String(body ?? "{}")) as { isbn?: string; wearScore?: number };
+    const isbn = payload.isbn ?? "9780306406157";
+    const wear = payload.wearScore ?? 85;
+    const grade = wear >= 80 ? "GOOD" : (wear >= 60 ? "MEDIUM" : "UNQUALIFIED");
+    const base = 50.00;
+    const ratio = 0.2 + (Math.min(100, Math.max(0, wear)) / 100.0) * 0.6;
+    const estimated = Number((base * ratio).toFixed(2));
+    const newItem = {
+      cartItemId: Date.now(),
+      barcode: isbn,
+      title: "Dune",
+      author: "Frank Herbert",
+      publisher: "Penguin Books",
+      publishYear: 1965,
+      category: "图书",
+      wearScore: wear,
+      estimatedPrice: estimated,
+      grade,
+      source: "SCAN",
+      status: "IN_CART",
+      createdAt: new Date().toISOString().replace("T", " ").substring(0, 19)
+    };
+    demoRecycleCartItems.push(newItem as unknown as RecycleCartItem);
+    return newItem as T;
+  }
+  // R5 回收车：查看列表
+  if (path === "/api/recycle/cart" && method === "GET") return demoRecycleCartItems as T;
+  // R5 回收车：手动添加
+  if (path === "/api/recycle/cart" && method === "POST") {
+    const payload = JSON.parse(String(body ?? "{}")) as { title?: string; category?: string; wearScore?: number; estimatedPrice?: number };
+    const wear = payload.wearScore ?? 75;
+    const grade = wear >= 80 ? "GOOD" : (wear >= 60 ? "MEDIUM" : "UNQUALIFIED");
+    const newItem = {
+      cartItemId: Date.now(),
+      barcode: undefined,
+      title: payload.title ?? "旧物",
+      author: undefined,
+      publisher: undefined,
+      publishYear: undefined,
+      category: payload.category ?? "其他",
+      wearScore: wear,
+      estimatedPrice: payload.estimatedPrice ?? 20,
+      grade,
+      source: "MANUAL",
+      status: "IN_CART",
+      createdAt: new Date().toISOString().replace("T", " ").substring(0, 19)
+    };
+    demoRecycleCartItems.push(newItem as unknown as RecycleCartItem);
+    return newItem as T;
+  }
+  // R5 回收车：移除
+  if (path.includes("/api/recycle/cart/") && method === "DELETE") {
+    const id = Number(path.split("/").pop());
+    const idx = demoRecycleCartItems.findIndex((item) => item.cartItemId === id);
+    if (idx >= 0) demoRecycleCartItems.splice(idx, 1);
+    return { removed: true } as T;
+  }
+  // R5 回收车：提交
+  if (path === "/api/recycle/cart/submit" && method === "POST") {
+    const items = demoRecycleCartItems.filter((item) => item.status === "IN_CART");
+    const total = items.reduce((sum, item) => sum + item.estimatedPrice, 0);
+    const orderNos = items.map(() => `RCY-${Math.random().toString(36).substring(2, 10).toUpperCase()}`);
+    const result = {
+      submittedCount: items.length,
+      orderNumbers: orderNos,
+      totalEstimatedPrice: Number(total.toFixed(2)),
+      totalPoints: items.length * 100
+    };
+    demoRecycleCartItems.length = 0;
+    return result as T;
   }
   // demo 下无返回值的动作接口（取消订单、确认收货、审核、上架等）
   if (method === "POST" || method === "PATCH" || method === "DELETE") return undefined as T;
